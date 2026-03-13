@@ -1,73 +1,97 @@
-# Welcome to your Lovable project
+# MediVision Buddy 🏥
 
-## Project info
+AI-Powered Medical Decision Support System for Chest Disease Detection
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 🔬 Overview
 
-## How can I edit this code?
+MediVision Buddy is an intelligent medical assistant that combines advanced AI with medical expertise to help healthcare professionals and students analyze chest X-rays and symptoms with confidence.
 
-There are several ways of editing your application.
+## ✨ Features
 
-**Use Lovable**
+### 🔬 X-Ray Analysis
+Upload chest X-ray images and receive AI-powered analysis for:
+- COVID-19
+- Pneumonia
+- Lung Opacity
+- Normal classification
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### 🩺 Symptom Checker
+Input symptoms and receive supportive diagnostic insights based on established medical knowledge with risk level assessments.
 
-Changes made via Lovable will be committed automatically to this repo.
+### 💬 AI Medical Assistant
+Chat with MediVision Buddy to:
+- Understand analysis results
+- Ask questions about chest diseases
+- Get general medical precautions explained
 
-**Use your preferred IDE**
+### 🔐 Secure & Private
+Your medical data is encrypted and protected with enterprise-grade security standards.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🛠️ Tech Stack
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **Frontend**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Backend**: Supabase (PostgreSQL, Auth, Storage, Edge Functions)
+- **State Management**: TanStack React Query
+- **Routing**: React Router v6
 
-Follow these steps:
+## 🚀 Getting Started
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Prerequisites
+- Node.js 18+ installed
+- npm or yarn package manager
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### Installation
 
-# Step 3: Install the necessary dependencies.
-npm i
+```bash
+# Clone the repository
+git clone https://github.com/TarrushSaxena/medivision-buddy-ai.git
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Navigate to the project directory
+cd medivision-buddy-ai
+
+# Install dependencies
+npm install
+
+# Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 📦 Available Scripts
 
-**Use GitHub Codespaces**
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run preview` | Preview production build |
+| `npm run test` | Run tests |
+| `npm run lint` | Run ESLint |
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🏗️ Project Structure
 
-## What technologies are used for this project?
+```
+src/
+├── components/     # Reusable UI components
+├── contexts/       # React context providers
+├── hooks/          # Custom React hooks
+├── integrations/   # Third-party integrations (Supabase)
+├── lib/            # Utility functions
+├── pages/          # Page components
+└── test/           # Test files
+```
 
-This project is built with:
+## ⚠️ Disclaimer
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+MediVision Buddy is designed as a decision support tool and should not replace professional medical advice. Always consult with qualified healthcare professionals for medical decisions.
 
-## How can I deploy this project?
+## 📄 License
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+This project is private and proprietary.
 
-## Can I connect a custom domain to my Lovable project?
+## 👨‍💻 Author
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+**Tarrush Saxena**
+- GitHub: [@TarrushSaxena](https://github.com/TarrushSaxena)

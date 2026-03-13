@@ -2,25 +2,35 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { xrayAPI, symptomsAPI } from '@/lib/api';
+import { DashboardSkeleton } from '@/components/ui/page-skeletons';
+import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
+import { HealthScoreWidget } from '@/components/dashboard/HealthScoreWidget';
 import {
   FileImage,
   Stethoscope,
   MessageSquare,
-  TrendingUp,
   Clock,
   ArrowRight,
-  AlertCircle,
-  CheckCircle2,
+  CheckCircle,
   Activity,
+  Calendar,
+  AlertCircle,
+  Info,
+  HelpCircle,
+  Sparkles,
+  TrendingUp,
+  Zap
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
+import { useOnboarding } from '@/hooks/useOnboarding';
 
 interface AnalysisSummary {
   totalXRays: number;
   totalSymptomChecks: number;
+  lastAnalysisDate: string | null;
   recentActivity: Array<{
     type: 'xray' | 'symptom';
     date: string;
@@ -28,78 +38,44 @@ interface AnalysisSummary {
   }>;
 }
 
-const quickActions = [
-  {
-    icon: FileImage,
-    title: 'Analyze X-Ray',
-    description: 'Upload a chest X-ray for AI analysis',
-    href: '/xray-analysis',
-    color: 'bg-accent/10 text-accent',
-  },
-  {
-    icon: Stethoscope,
-    title: 'Check Symptoms',
-    description: 'Enter symptoms for diagnostic insights',
-    href: '/symptom-checker',
-    color: 'bg-primary/10 text-primary',
-  },
-  {
-    icon: MessageSquare,
-    title: 'AI Assistant',
-    description: 'Chat with our medical AI assistant',
-    href: '/chat',
-    color: 'bg-success/10 text-success',
-  },
-];
-
-const medicalTips = [
-  "Always verify AI predictions with clinical findings and patient history.",
-  "X-ray image quality significantly affects analysis accuracy.",
-  "Consider multiple differential diagnoses for better patient outcomes.",
-  "Document all AI-assisted analyses in patient records appropriately.",
-];
-
 export default function Dashboard() {
   const { user } = useAuth();
   const [summary, setSummary] = useState<AnalysisSummary>({
     totalXRays: 0,
     totalSymptomChecks: 0,
+    lastAnalysisDate: null,
     recentActivity: [],
   });
   const [loading, setLoading] = useState(true);
+
+  // Safely get user display name
+  const getUserDisplayName = () => {
+    if (!user) return '';
+
+    // Try full_name from metadata
+    if (user.user_metadata?.full_name && typeof user.user_metadata.full_name === 'string') {
+      return user.user_metadata.full_name;
+    }
+
+    // Try email and extract name part
+    if (user.email) {
+      const emailName = user.email.split('@')[0];
+      // Capitalize first letter
+      return emailName.charAt(0).toUpperCase() + emailName.slice(1);
+    }
+
+    return '';
+  };
 
   useEffect(() => {
     const fetchSummary = async () => {
       if (!user) return;
 
       try {
-        // Fetch X-ray analyses count
-        const { count: xrayCount } = await supabase
-          .from('x_ray_analyses')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
-
-        // Fetch symptom checks count
-        const { count: symptomCount } = await supabase
-          .from('symptom_checks')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
-
-        // Fetch recent X-ray analyses
-        const { data: recentXRays } = await supabase
-          .from('x_ray_analyses')
-          .select('prediction, created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(3);
-
-        // Fetch recent symptom checks
-        const { data: recentSymptoms } = await supabase
-          .from('symptom_checks')
-          .select('risk_level, created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(3);
+        const { count: xrayCount } = await xrayAPI.getCount();
+        const { count: symptomCount } = await symptomsAPI.getCount();
+        const recentXRays = await xrayAPI.getRecent(3);
+        const recentSymptoms = await symptomsAPI.getRecent(3);
 
         const recentActivity: AnalysisSummary['recentActivity'] = [
           ...(recentXRays?.map((x) => ({
@@ -114,9 +90,13 @@ export default function Dashboard() {
           })) || []),
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
+        // Get last analysis date
+        const lastDate = recentActivity.length > 0 ? recentActivity[0].date : null;
+
         setSummary({
           totalXRays: xrayCount || 0,
           totalSymptomChecks: symptomCount || 0,
+          lastAnalysisDate: lastDate,
           recentActivity,
         });
       } catch (error) {
@@ -127,153 +107,256 @@ export default function Dashboard() {
     };
 
     fetchSummary();
+
+    // Poll for updates every 10 seconds
+    const intervalId = setInterval(fetchSummary, 10000);
+
+    return () => clearInterval(intervalId);
   }, [user]);
 
   const getResultBadge = (type: string, result: string) => {
     if (type === 'xray') {
-      const colors: Record<string, string> = {
-        normal: 'bg-success/10 text-success',
-        covid19: 'bg-destructive/10 text-destructive',
-        pneumonia: 'bg-warning/10 text-warning',
-        lung_opacity: 'bg-info/10 text-info',
+      const classes: Record<string, string> = {
+        normal: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+        covid19: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
+        pneumonia: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+        lung_opacity: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
       };
-      return colors[result] || 'bg-muted text-muted-foreground';
+      return classes[result] || 'bg-muted text-muted-foreground';
     }
-    const riskColors: Record<string, string> = {
-      low: 'bg-success/10 text-success',
-      moderate: 'bg-warning/10 text-warning',
-      high: 'bg-destructive/10 text-destructive',
-      critical: 'bg-destructive/10 text-destructive',
+    const classes: Record<string, string> = {
+      low: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+      moderate: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+      high: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
+      critical: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
     };
-    return riskColors[result] || 'bg-muted text-muted-foreground';
+    return classes[result] || 'bg-muted text-muted-foreground';
   };
+
+  const formatResult = (result: string) => {
+    return result.replace('_', ' ').charAt(0).toUpperCase() + result.replace('_', ' ').slice(1);
+  };
+
+  const displayName = getUserDisplayName();
+  const { startOnboarding, hasCompletedOnboarding } = useOnboarding();
+
+  // Show skeleton while loading
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <DashboardSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        {/* Welcome Section */}
+      {/* Onboarding Tour */}
+      <OnboardingTour />
+
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* Header - Personalized & Clean */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">
-              Welcome back{user?.user_metadata?.full_name ? `, ${user.user_metadata.full_name}` : ''}!
+            <h1 className="text-3xl font-bold tracking-tight">
+              Welcome back, <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{displayName}</span>
             </h1>
-            <p className="text-muted-foreground mt-1">
-              Here's an overview of your diagnostic activity
+            <p className="text-muted-foreground mt-1 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-amber-500" />
+              Your diagnostic insights are ready.
             </p>
           </div>
-          <Button variant="medical" asChild>
-            <Link to="/xray-analysis">
-              <FileImage className="h-4 w-4 mr-2" />
-              New Analysis
-            </Link>
-          </Button>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="card-medical">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                X-Ray Analyses
-              </CardTitle>
-              <FileImage className="h-4 w-4 text-accent" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{summary.totalXRays}</div>
-              <p className="text-xs text-muted-foreground mt-1">Total scans analyzed</p>
-            </CardContent>
-          </Card>
-
-          <Card className="card-medical">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Symptom Checks
-              </CardTitle>
-              <Stethoscope className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{summary.totalSymptomChecks}</div>
-              <p className="text-xs text-muted-foreground mt-1">Total assessments</p>
-            </CardContent>
-          </Card>
-
-          <Card className="card-medical">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                AI Assistant
-              </CardTitle>
-              <MessageSquare className="h-4 w-4 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">24/7</div>
-              <p className="text-xs text-muted-foreground mt-1">Available for questions</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Actions */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {quickActions.map((action) => (
-              <Link key={action.href} to={action.href}>
-                <Card className="card-medical h-full cursor-pointer group">
-                  <CardContent className="p-6">
-                    <div className={`h-12 w-12 rounded-xl ${action.color} flex items-center justify-center mb-4`}>
-                      <action.icon className="h-6 w-6" />
-                    </div>
-                    <h3 className="font-semibold text-foreground mb-1 group-hover:text-accent transition-colors">
-                      {action.title}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">{action.description}</p>
-                  </CardContent>
-                </Card>
+          <div className="flex items-center gap-2">
+            {hasCompletedOnboarding && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={startOnboarding}
+                className="h-9 hover:bg-muted"
+              >
+                <HelpCircle className="h-4 w-4 mr-2" />
+                Take Tour
+              </Button>
+            )}
+            <Button asChild className="shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+              <Link to="/xray-analysis">
+                <FileImage className="h-4 w-4 mr-2" />
+                New Analysis
               </Link>
-            ))}
+            </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Activity */}
-          <Card className="card-medical">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-muted-foreground" />
+        {/* Health Score Widget - New Addition */}
+        <HealthScoreWidget
+          totalAnalyses={summary.totalXRays + summary.totalSymptomChecks}
+          recentActivityCount={summary.recentActivity.length}
+          lastAnalysisDate={summary.lastAnalysisDate}
+        />
+
+        {/* Stats - Compact Modern Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-tour="stats">
+          <div className="glass-card p-4 group hover:border-blue-500/30 transition-colors">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
+                <FileImage className="h-4 w-4" />
+              </div>
+              <TrendingUp className="h-3 w-3 text-emerald-500" />
+            </div>
+            <p className="text-2xl font-bold">{summary.totalXRays}</p>
+            <p className="text-xs text-muted-foreground">X-Ray Scans</p>
+          </div>
+
+          <div className="glass-card p-4 group hover:border-purple-500/30 transition-colors">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500">
+                <Stethoscope className="h-4 w-4" />
+              </div>
+              <TrendingUp className="h-3 w-3 text-emerald-500" />
+            </div>
+            <p className="text-2xl font-bold">{summary.totalSymptomChecks}</p>
+            <p className="text-xs text-muted-foreground">Symptom Checks</p>
+          </div>
+
+          <div className="glass-card p-4 group hover:border-amber-500/30 transition-colors">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+                <Clock className="h-4 w-4" />
+              </div>
+            </div>
+            <p className="text-lg font-bold truncate">
+              {summary.lastAnalysisDate
+                ? formatDistanceToNow(new Date(summary.lastAnalysisDate), { addSuffix: false })
+                : 'N/A'}
+            </p>
+            <p className="text-xs text-muted-foreground">Since Last Analysis</p>
+          </div>
+
+          <div className="glass-card p-4 group hover:border-emerald-500/30 transition-colors bg-gradient-to-br from-emerald-500/5 to-transparent">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
+                <Info className="h-4 w-4" />
+              </div>
+            </div>
+            <p className="text-lg font-bold">Educational</p>
+            <p className="text-xs text-muted-foreground">Research Mode</p>
+          </div>
+        </div>
+
+        {/* Quick Actions - Compact Cards */}
+        <div>
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-amber-500" />
+            Quick Actions
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Link to="/xray-analysis" className="group" data-tour="xray-action">
+              <div className="glass-card p-4 h-full hover:border-blue-500/30 transition-all hover:shadow-lg hover:shadow-blue-500/5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl text-white shadow-lg shadow-blue-500/25">
+                    <FileImage className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">X-Ray Analysis</h3>
+                    <p className="text-xs text-muted-foreground">AI-powered scan review</p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Upload chest X-rays for instant AI analysis with heatmap visualization.
+                </p>
+                <div className="mt-3 flex items-center text-blue-500 text-sm font-medium group-hover:gap-2 transition-all">
+                  Start Analysis <ArrowRight className="h-4 w-4 ml-1" />
+                </div>
+              </div>
+            </Link>
+
+            <Link to="/symptom-checker" className="group" data-tour="symptom-action">
+              <div className="glass-card p-4 h-full hover:border-purple-500/30 transition-all hover:shadow-lg hover:shadow-purple-500/5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl text-white shadow-lg shadow-purple-500/25">
+                    <Stethoscope className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Symptom Checker</h3>
+                    <p className="text-xs text-muted-foreground">Risk assessment</p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Describe your symptoms for AI-driven health risk assessment.
+                </p>
+                <div className="mt-3 flex items-center text-purple-500 text-sm font-medium group-hover:gap-2 transition-all">
+                  Check Symptoms <ArrowRight className="h-4 w-4 ml-1" />
+                </div>
+              </div>
+            </Link>
+
+            <Link to="/chat" className="group" data-tour="chat-action">
+              <div className="glass-card p-4 h-full hover:border-emerald-500/30 transition-all hover:shadow-lg hover:shadow-emerald-500/5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl text-white shadow-lg shadow-emerald-500/25">
+                    <MessageSquare className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold flex items-center gap-2">
+                      AI Assistant
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full">Beta</span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground">Chat with MediVision</p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Ask medical questions and get instant educational answers.
+                </p>
+                <div className="mt-3 flex items-center text-emerald-500 text-sm font-medium group-hover:gap-2 transition-all">
+                  Start Chat <ArrowRight className="h-4 w-4 ml-1" />
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+
+        {/* Activity & Tips - Grid Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="glass-card border-none shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <Clock className="h-4 w-4 text-blue-500" />
                 Recent Activity
               </CardTitle>
-              <CardDescription>Your latest diagnostic analyses</CardDescription>
             </CardHeader>
             <CardContent>
               {summary.recentActivity.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No activity yet</p>
-                  <p className="text-sm">Start by uploading an X-ray or checking symptoms</p>
+                <div className="text-center py-8 border-2 border-dashed border-muted rounded-xl">
+                  <Activity className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground mb-1">No activity yet</p>
+                  <Button variant="link" asChild className="text-primary p-0 h-auto text-sm">
+                    <Link to="/xray-analysis">Start your first analysis</Link>
+                  </Button>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {summary.recentActivity.map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                    >
+                    <div key={index} className="group flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/60 transition-colors">
                       <div className="flex items-center gap-3">
-                        {activity.type === 'xray' ? (
-                          <FileImage className="h-5 w-5 text-accent" />
-                        ) : (
-                          <Stethoscope className="h-5 w-5 text-primary" />
-                        )}
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${activity.type === 'xray' ? 'bg-blue-500/10 text-blue-500' : 'bg-purple-500/10 text-purple-500'
+                          }`}>
+                          {activity.type === 'xray' ? (
+                            <FileImage className="h-4 w-4" />
+                          ) : (
+                            <Stethoscope className="h-4 w-4" />
+                          )}
+                        </div>
                         <div>
                           <p className="text-sm font-medium">
                             {activity.type === 'xray' ? 'X-Ray Analysis' : 'Symptom Check'}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {format(new Date(activity.date), 'MMM d, yyyy h:mm a')}
+                            {format(new Date(activity.date), 'MMM d, h:mm a')}
                           </p>
                         </div>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getResultBadge(activity.type, activity.result)}`}>
-                        {activity.result.replace('_', ' ')}
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getResultBadge(activity.type, activity.result)}`}>
+                        {formatResult(activity.result)}
                       </span>
                     </div>
                   ))}
@@ -282,26 +365,39 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Medical Tips */}
-          <Card className="card-medical">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                Best Practices
+          <Card className="glass-card border-none shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <CheckCircle className="h-4 w-4 text-amber-500" />
+                Quick Tips
               </CardTitle>
-              <CardDescription>Tips for effective AI-assisted diagnosis</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {medicalTips.map((tip, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0 mt-0.5" />
+              <div className="space-y-2">
+                {[
+                  "Verify AI predictions with clinical findings",
+                  "Use high-quality images for best results",
+                  "Consider differential diagnoses",
+                  "Review past analyses regularly"
+                ].map((tip, index) => (
+                  <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/30 transition-colors">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center text-[10px] font-bold">
+                      {index + 1}
+                    </div>
                     <p className="text-sm text-muted-foreground">{tip}</p>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Educational Disclaimer - Compact */}
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+          <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+          <p className="text-xs text-muted-foreground">
+            <strong className="text-foreground">Educational Only:</strong> Always consult healthcare professionals for medical decisions.
+          </p>
         </div>
       </div>
     </DashboardLayout>

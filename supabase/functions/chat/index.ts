@@ -22,33 +22,39 @@ IMPORTANT GUIDELINES:
 
 Keep responses concise but informative. Use bullet points when listing multiple items.`;
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { messages, systemPrompt } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!messages || !Array.isArray(messages)) {
+      throw new Error("Invalid or missing 'messages' in request body");
     }
+    // NVIDIA API Key (Kimi k2.5)
+    const NVIDIA_API_KEY = "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";
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Using NVIDIA's API endpoint
+    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${NVIDIA_API_KEY}`,
         "Content-Type": "application/json",
+        "Accept": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "moonshotai/kimi-k2.5",
         messages: [
           { role: "system", content: systemPrompt || SYSTEM_PROMPT },
           ...messages,
         ],
-        max_tokens: 1024,
-        temperature: 0.7,
+        max_tokens: 16384,
+        temperature: 1.00,
+        top_p: 1.00,
+        stream: false,
+        chat_template_kwargs: { thinking: true },
       }),
     });
 
@@ -62,16 +68,8 @@ serve(async (req) => {
           }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }),
-          {
-            status: 402,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-      
+      // Removed Lovable-specific 402 error check
+
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
       throw new Error("Failed to get AI response");
@@ -89,7 +87,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Chat function error:", error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: error instanceof Error ? error.message : "An unexpected error occurred",
         content: "I'm sorry, I'm having trouble processing your request right now. Please try again in a moment."
       }),

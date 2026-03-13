@@ -4,17 +4,19 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { MedicalDisclaimer } from '@/components/MedicalDisclaimer';
+import { xrayAPI } from '@/lib/api';
 import {
   Upload,
   FileImage,
   Loader2,
-  AlertCircle,
-  CheckCircle2,
+  CheckCircle,
   XCircle,
   AlertTriangle,
   Info,
+  Check,
+  Image,
+  Eye,
+  FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -30,30 +32,34 @@ interface PredictionResult {
   };
 }
 
-const predictionInfo: Record<string, { label: string; color: string; icon: typeof CheckCircle2; description: string }> = {
+const predictionInfo: Record<string, { label: string; color: string; bgColor: string; icon: typeof CheckCircle; description: string }> = {
   normal: {
     label: 'Normal',
-    color: 'text-success',
-    icon: CheckCircle2,
-    description: 'No significant abnormalities detected in the chest X-ray.',
+    color: 'text-green-600',
+    bgColor: 'bg-green-50 dark:bg-green-900/20',
+    icon: CheckCircle,
+    description: 'No significant abnormalities detected.',
   },
   covid19: {
     label: 'COVID-19',
-    color: 'text-destructive',
+    color: 'text-red-600',
+    bgColor: 'bg-red-50 dark:bg-red-900/20',
     icon: XCircle,
-    description: 'Pattern consistent with COVID-19 pneumonia. Ground-glass opacities may be present.',
+    description: 'Pattern consistent with COVID-19 pneumonia.',
   },
   pneumonia: {
     label: 'Pneumonia',
-    color: 'text-warning',
+    color: 'text-amber-600',
+    bgColor: 'bg-amber-50 dark:bg-amber-900/20',
     icon: AlertTriangle,
-    description: 'Signs of bacterial or viral pneumonia detected. Consolidation patterns visible.',
+    description: 'Signs of bacterial or viral pneumonia detected.',
   },
   lung_opacity: {
     label: 'Lung Opacity',
-    color: 'text-info',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/20',
     icon: Info,
-    description: 'Lung opacity detected. May indicate various conditions requiring further investigation.',
+    description: 'Lung opacity detected, requires investigation.',
   },
 };
 
@@ -92,8 +98,7 @@ export default function XRayAnalysis() {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    handleFileChange(droppedFile);
+    handleFileChange(e.dataTransfer.files[0]);
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -108,70 +113,36 @@ export default function XRayAnalysis() {
 
   const analyzeImage = async () => {
     if (!file || !user) return;
-
     setAnalyzing(true);
 
     try {
-      // Upload image to storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('xray-images')
-        .upload(fileName, file);
+      // Convert image to base64 for storage
+      const reader = new FileReader();
+      const imageData = await new Promise<string>((resolve) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
 
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('xray-images')
-        .getPublicUrl(fileName);
-
-      // Mock AI prediction (simulates CNN model)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      const predictions = {
-        covid19: Math.random() * 0.3,
-        pneumonia: Math.random() * 0.3,
-        lung_opacity: Math.random() * 0.3,
-        normal: Math.random() * 0.5 + 0.2,
-      };
-
-      const total = Object.values(predictions).reduce((a, b) => a + b, 0);
-      const normalized = Object.fromEntries(
-        Object.entries(predictions).map(([k, v]) => [k, (v / total) * 100])
-      ) as PredictionResult['allPredictions'];
-
-      const maxPrediction = Object.entries(normalized).reduce((a, b) =>
-        a[1] > b[1] ? a : b
-      );
+      // Send to real backend API which contacts Python FastAPI
+      const response = await xrayAPI.upload({
+        image_data: imageData,
+        notes: notes || undefined,
+      });
 
       const predictionResult: PredictionResult = {
-        prediction: maxPrediction[0] as PredictionResult['prediction'],
-        confidence: Math.round(maxPrediction[1] * 10) / 10,
-        allPredictions: {
-          covid19: Math.round(normalized.covid19 * 10) / 10,
-          pneumonia: Math.round(normalized.pneumonia * 10) / 10,
-          lung_opacity: Math.round(normalized.lung_opacity * 10) / 10,
-          normal: Math.round(normalized.normal * 10) / 10,
-        },
+        prediction: response.analysis.prediction as PredictionResult['prediction'],
+        confidence: response.analysis.confidence,
+        allPredictions: response.analysis.all_predictions,
       };
-
-      // Save to database
-      await supabase.from('x_ray_analyses').insert({
-        user_id: user.id,
-        image_url: urlData.publicUrl,
-        prediction: predictionResult.prediction,
-        confidence: predictionResult.confidence,
-        all_predictions: predictionResult.allPredictions,
-        notes: notes || null,
-      });
 
       setResult(predictionResult);
       toast.success('Analysis complete!');
     } catch (error) {
       console.error('Analysis error:', error);
-      toast.error('Failed to analyze image. Please try again.');
+      toast.error('Failed to analyze. Please try again.');
     } finally {
       setAnalyzing(false);
     }
@@ -188,23 +159,35 @@ export default function XRayAnalysis() {
   const ResultIcon = resultInfo?.icon || Info;
 
   return (
-    <DashboardLayout title="X-Ray Analysis">
+    <DashboardLayout>
       <div className="max-w-5xl mx-auto space-y-6">
-        <MedicalDisclaimer />
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">X-Ray Analysis</h1>
+            <p className="text-muted-foreground">Upload chest X-rays for AI-assisted analysis</p>
+          </div>
+        </div>
+
+        {/* Compact Disclaimer */}
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/5 border border-warning/20">
+          <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0" />
+          <p className="text-xs text-muted-foreground">
+            <strong className="text-foreground">Educational Tool:</strong> AI findings require verification by a qualified healthcare professional.
+          </p>
+        </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Upload Section */}
-          <Card className="card-medical">
+          {/* Upload */}
+          <Card className="card-simple">
             <CardHeader>
-              <CardTitle>Upload X-Ray Image</CardTitle>
-              <CardDescription>
-                Upload a chest X-ray image for AI-powered analysis
-              </CardDescription>
+              <CardTitle>Upload Image</CardTitle>
+              <CardDescription>Drag and drop or click to upload</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {!preview ? (
                 <div
-                  className={cn('upload-zone', dragging && 'dragging')}
+                  className={cn('upload-zone', dragging && 'border-primary bg-primary/5')}
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
@@ -217,31 +200,38 @@ export default function XRayAnalysis() {
                     className="hidden"
                     onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
                   />
-                  <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-foreground font-medium mb-1">
-                    Drag and drop or click to upload
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Supports JPEG, PNG, DICOM (max 10MB)
-                  </p>
+                  <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="font-medium mb-1">Drop X-ray image here</p>
+                  <p className="text-sm text-muted-foreground mb-4">JPEG, PNG, DICOM (max 10MB)</p>
+
+                  {/* Quality Checklist */}
+                  <div className="text-left bg-muted/50 rounded-lg p-3 mt-2">
+                    <p className="text-xs font-medium mb-2 text-foreground">For best results:</p>
+                    <div className="space-y-1.5">
+                      {[
+                        'Correct PA/AP orientation',
+                        'No blur or motion artifacts',
+                        'Full chest visible in frame'
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Check className="h-3 w-3 text-success" />
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="relative rounded-xl overflow-hidden bg-muted aspect-square">
-                    <img
-                      src={preview}
-                      alt="X-ray preview"
-                      className="w-full h-full object-contain"
-                    />
+                  <div className="rounded-lg overflow-hidden bg-muted aspect-square">
+                    <img src={preview} alt="X-ray preview" className="w-full h-full object-contain" />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground flex items-center gap-2">
                       <FileImage className="h-4 w-4" />
                       {file?.name}
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={resetAnalysis}>
-                      Remove
-                    </Button>
+                    </span>
+                    <Button variant="ghost" size="sm" onClick={resetAnalysis}>Remove</Button>
                   </div>
                 </div>
               )}
@@ -249,7 +239,7 @@ export default function XRayAnalysis() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Clinical Notes (Optional)</label>
                 <Textarea
-                  placeholder="Add any relevant clinical notes..."
+                  placeholder="Add relevant patient history or observations..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
@@ -257,16 +247,15 @@ export default function XRayAnalysis() {
               </div>
 
               <Button
-                variant="medical"
-                size="lg"
                 className="w-full"
                 onClick={analyzeImage}
                 disabled={!file || analyzing}
+                size="lg"
               >
                 {analyzing ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Analyzing...
+                    Analyzing... please wait
                   </>
                 ) : (
                   <>
@@ -278,41 +267,55 @@ export default function XRayAnalysis() {
             </CardContent>
           </Card>
 
-          {/* Results Section */}
-          <Card className={cn('card-medical', result && `result-${result.prediction}`)}>
+          {/* Results */}
+          <Card className="card-simple">
             <CardHeader>
               <CardTitle>Analysis Results</CardTitle>
-              <CardDescription>
-                AI-generated predictions with confidence scores
-              </CardDescription>
+              <CardDescription>AI-generated findings</CardDescription>
             </CardHeader>
             <CardContent>
               {!result ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <FileImage className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <p className="font-medium">No analysis yet</p>
-                  <p className="text-sm">Upload an X-ray image to get started</p>
+                <div className="text-center py-12">
+                  {/* Placeholder skeleton */}
+                  <div className="space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-muted mx-auto flex items-center justify-center">
+                      <Image className="h-8 w-8 text-muted-foreground/30" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-muted-foreground mb-1">Upload an X-ray to see:</p>
+                      <div className="space-y-2 text-sm text-muted-foreground/70">
+                        <div className="flex items-center justify-center gap-2">
+                          <Eye className="h-3 w-3" />
+                          AI-detected findings
+                        </div>
+                        <div className="flex items-center justify-center gap-2">
+                          <CheckCircle className="h-3 w-3" />
+                          Confidence levels
+                        </div>
+                        <div className="flex items-center justify-center gap-2">
+                          <FileText className="h-3 w-3" />
+                          Classification breakdown
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-6">
                   {/* Primary Result */}
-                  <div className="text-center p-6 rounded-xl bg-muted/50">
-                    <ResultIcon className={cn('h-16 w-16 mx-auto mb-4', resultInfo?.color)} />
-                    <h3 className={cn('text-2xl font-bold mb-2', resultInfo?.color)}>
+                  <div className={cn('text-center p-6 rounded-xl', resultInfo?.bgColor)}>
+                    <ResultIcon className={cn('h-12 w-12 mx-auto mb-3', resultInfo?.color)} />
+                    <h3 className={cn('text-xl font-semibold mb-1', resultInfo?.color)}>
                       {resultInfo?.label}
                     </h3>
-                    <p className="text-muted-foreground text-sm mb-4">
-                      {resultInfo?.description}
-                    </p>
-                    <div className="text-3xl font-bold text-foreground">
-                      {result.confidence}%
-                    </div>
-                    <p className="text-sm text-muted-foreground">Confidence Score</p>
+                    <p className="text-sm text-muted-foreground mb-4">{resultInfo?.description}</p>
+                    <div className="text-3xl font-bold">{result.confidence}%</div>
+                    <p className="text-xs text-muted-foreground">Confidence Score</p>
                   </div>
 
                   {/* All Predictions */}
                   <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">All Classifications</h4>
+                    <h4 className="text-sm font-medium text-muted-foreground">All Classifications</h4>
                     {Object.entries(result.allPredictions)
                       .sort(([, a], [, b]) => b - a)
                       .map(([key, value]) => {
@@ -320,16 +323,16 @@ export default function XRayAnalysis() {
                         return (
                           <div key={key} className="space-y-1">
                             <div className="flex justify-between text-sm">
-                              <span className="font-medium">{info.label}</span>
+                              <span>{info.label}</span>
                               <span className="text-muted-foreground">{value}%</span>
                             </div>
                             <div className="confidence-bar">
                               <div
                                 className={cn('confidence-fill', {
-                                  'bg-success': key === 'normal',
-                                  'bg-destructive': key === 'covid19',
-                                  'bg-warning': key === 'pneumonia',
-                                  'bg-info': key === 'lung_opacity',
+                                  'bg-green-500': key === 'normal',
+                                  'bg-red-500': key === 'covid19',
+                                  'bg-amber-500': key === 'pneumonia',
+                                  'bg-blue-500': key === 'lung_opacity',
                                 })}
                                 style={{ width: `${value}%` }}
                               />
@@ -337,6 +340,14 @@ export default function XRayAnalysis() {
                           </div>
                         );
                       })}
+                  </div>
+
+                  {/* Educational Note */}
+                  <div className="p-3 rounded-lg bg-muted/50 border border-border">
+                    <p className="text-xs text-muted-foreground">
+                      <strong className="text-foreground">Note:</strong> These results are for educational purposes.
+                      Clinical correlation and professional interpretation are essential.
+                    </p>
                   </div>
 
                   <Button variant="outline" className="w-full" onClick={resetAnalysis}>

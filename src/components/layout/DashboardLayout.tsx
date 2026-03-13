@@ -4,7 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { MedicalDisclaimer } from '@/components/MedicalDisclaimer';
 import {
-  Activity,
   LayoutDashboard,
   FileImage,
   Stethoscope,
@@ -13,6 +12,7 @@ import {
   Menu,
   X,
   ChevronLeft,
+  Home,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -22,6 +22,7 @@ interface DashboardLayoutProps {
 }
 
 const navItems = [
+  { icon: Home, label: 'Home', path: '/' },
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: FileImage, label: 'X-Ray Analysis', path: '/xray-analysis' },
   { icon: Stethoscope, label: 'Symptom Checker', path: '/symptom-checker' },
@@ -42,14 +43,12 @@ export const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
   return (
     <div className="min-h-screen bg-background">
       <MedicalDisclaimer variant="banner" />
-      
+
       {/* Sidebar - Desktop */}
       <aside className="fixed left-0 top-[33px] bottom-0 w-64 bg-sidebar border-r border-sidebar-border hidden lg:flex flex-col">
         {/* Logo */}
         <div className="h-16 flex items-center gap-2 px-4 border-b border-sidebar-border">
-          <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center">
-            <Activity className="h-5 w-5 text-sidebar-primary-foreground" />
-          </div>
+          <img src="/logo.svg" alt="MediVision" className="h-9 w-9" />
           <span className="font-display font-bold text-sidebar-foreground">MediVision</span>
         </div>
 
@@ -104,9 +103,7 @@ export const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-[33px] left-0 right-0 h-16 bg-background/80 backdrop-blur-lg border-b border-border z-40 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <Activity className="h-4 w-4 text-primary-foreground" />
-          </div>
+          <img src="/logo.svg" alt="MediVision" className="h-8 w-8" />
           <span className="font-display font-bold text-foreground">MediVision</span>
         </div>
         <button
@@ -175,10 +172,10 @@ export const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
               <h1 className="text-xl font-display font-semibold">{title}</h1>
             </div>
           )}
-          
+
           {/* Mobile Padding */}
           <div className="lg:hidden h-16" />
-          
+
           {/* Page Content */}
           <div className="p-6">
             {children}

@@ -1,260 +1,235 @@
+import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
+import { BentoGrid, BentoGridItem } from '@/components/ui/BentoGrid';
 import {
-  Activity,
-  FileImage,
-  Stethoscope,
+  ArrowRight,
+  Upload,
   MessageSquare,
+  BarChart2,
   Shield,
   Zap,
-  Users,
-  ArrowRight,
-  CheckCircle2,
-  Upload,
+  Info,
+  UserCheck,
+  ClipboardCheck,
   Brain,
-  ClipboardList,
+  Activity,
+  Files,
+  Sparkles
 } from 'lucide-react';
-
-const features = [
-  {
-    icon: FileImage,
-    title: 'X-Ray Analysis',
-    description: 'Upload chest X-ray images and receive AI-powered analysis for COVID-19, Pneumonia, Lung Opacity, or Normal classification.',
-  },
-  {
-    icon: Stethoscope,
-    title: 'Symptom Checker',
-    description: 'Input symptoms and receive supportive diagnostic insights based on established medical knowledge.',
-  },
-  {
-    icon: MessageSquare,
-    title: 'AI Medical Assistant',
-    description: 'Chat with our AI to understand results, ask questions, and get general medical precautions explained.',
-  },
-  {
-    icon: Shield,
-    title: 'Secure & Private',
-    description: 'Your medical data is encrypted and protected with enterprise-grade security standards.',
-  },
-];
-
-const steps = [
-  {
-    icon: Upload,
-    step: '01',
-    title: 'Upload or Input',
-    description: 'Upload a chest X-ray image or enter your symptoms into the system.',
-  },
-  {
-    icon: Brain,
-    step: '02',
-    title: 'AI Analysis',
-    description: 'Our CNN-based model analyzes the data and generates predictions with confidence scores.',
-  },
-  {
-    icon: ClipboardList,
-    step: '03',
-    title: 'Review Results',
-    description: 'View detailed results with explanations and chat with AI for clarifications.',
-  },
-];
-
-const stats = [
-  { value: '98%', label: 'Accuracy Rate' },
-  { value: '10K+', label: 'Scans Analyzed' },
-  { value: '500+', label: 'Healthcare Users' },
-  { value: '24/7', label: 'Available' },
-];
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       <Navbar />
 
-      {/* Hero Section */}
-      <section className="hero-gradient pt-24 pb-20 lg:pt-32 lg:pb-28">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="badge-medical mb-6 mx-auto w-fit animate-fade-in">
-              <Activity className="h-4 w-4" />
-              AI-Powered Medical Decision Support
+      {/* Hero Section with Aurora Effect */}
+      <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden">
+        <div className="absolute inset-0 z-0 opacity-40">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-[hsl(var(--aurora-1))] rounded-full blur-[128px] animate-pulse" />
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-[hsl(var(--aurora-2))] rounded-full blur-[128px] animate-pulse delay-1000" />
+        </div>
+
+        <div className="container relative z-10 mx-auto px-4 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-4xl mx-auto"
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-8 uppercase tracking-wider">
+              <Sparkles className="h-3 w-3" />
+              Next-Gen Medical AI
             </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white mb-6 animate-slide-up">
-              Intelligent Chest Disease Detection
+            <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-8 bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/70">
+              Meet MediVision. <br />
+              <span className="text-primary relative">
+                Medical AI Reimagined.
+                <svg className="absolute w-full h-3 -bottom-1 left-0 text-primary opacity-40" viewBox="0 0 100 10" preserveAspectRatio="none">
+                  <path d="M0 5 Q 50 10 100 5" stroke="currentColor" strokeWidth="2" fill="none" />
+                </svg>
+              </span>
             </h1>
-            <p className="text-lg md:text-xl text-white/80 mb-8 max-w-2xl mx-auto animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              MediVision Buddy combines advanced AI with medical expertise to help healthcare professionals 
-              and students analyze chest X-rays and symptoms with confidence.
+            <p className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
+              Advanced AI-powered diagnostics for educational and research purposes.
+              Experience the future of radiology with clinical-grade precision.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up" style={{ animationDelay: '0.2s' }}>
-              <Button variant="hero" size="xl" asChild>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <Button asChild size="lg" className="h-14 px-8 text-lg rounded-full shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-shadow">
                 <Link to="/register">
                   Get Started Free
-                  <ArrowRight className="h-5 w-5 ml-2" />
+                  <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button variant="heroOutline" size="xl" asChild>
-                <Link to="/login">Sign In</Link>
+              <Button asChild variant="outline" size="lg" className="h-14 px-8 text-lg rounded-full border-border/50 hover:bg-muted/50 backdrop-blur-sm">
+                <Link to="/about">
+                  Learn More
+                </Link>
               </Button>
             </div>
-          </div>
-        </div>
+          </motion.div>
 
-        {/* Stats */}
-        <div className="container mx-auto px-4 mt-16">
-          <div className="glass rounded-2xl p-6 max-w-3xl mx-auto animate-scale-in" style={{ animationDelay: '0.3s' }}>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {stats.map((stat, index) => (
-                <div key={index} className="text-center">
-                  <div className="text-2xl md:text-3xl font-bold text-white">{stat.value}</div>
-                  <div className="text-sm text-white/70">{stat.label}</div>
-                </div>
-              ))}
+          {/* Hero Image / Dashboard Mockup */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 40 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
+            className="mt-20 relative max-w-5xl mx-auto"
+          >
+            <div className="rounded-xl border border-border/50 bg-background/50 backdrop-blur-md shadow-2xl overflow-hidden p-2">
+              <img
+                src="/images/hero_dashboard_1769245460172.png"
+                alt="MediVision Dashboard"
+                className="w-full h-auto rounded-lg"
+              />
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-20 lg:py-28">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
-              Powerful Features for Medical Professionals
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Everything you need to enhance your diagnostic workflow with AI-powered insights.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <div
-                key={index}
-                className="card-medical p-6 group"
-              >
-                <div className="h-12 w-12 rounded-xl bg-accent/10 flex items-center justify-center mb-4 group-hover:bg-accent/20 transition-colors">
-                  <feature.icon className="h-6 w-6 text-accent" />
+            {/* Floating Elements */}
+            <motion.div
+              animate={{ y: [0, -10, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -top-6 -right-6 p-4 bg-card rounded-xl shadow-xl border border-border/50 hidden md:block"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <Activity className="h-5 w-5 text-green-500" />
                 </div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Analysis Complete</p>
+                  <p className="text-sm font-bold text-foreground">98.5% Accuracy</p>
+                </div>
               </div>
-            ))}
-          </div>
+            </motion.div>
+            <motion.div
+              animate={{ y: [0, 10, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+              className="absolute -bottom-6 -left-6 p-4 bg-card rounded-xl shadow-xl border border-border/50 hidden md:block"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                  <Brain className="h-5 w-5 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Model Status</p>
+                  <p className="text-sm font-bold text-foreground">Active & Ready</p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section id="how-it-works" className="py-20 lg:py-28 bg-muted/50">
+      {/* Modern Bento Grid Features */}
+      <section className="py-24 bg-muted/20 relative">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
-              How MediVision Buddy Works
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Simple, intuitive, and designed for healthcare workflows.
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <h2 className="text-3xl md:text-5xl font-bold mb-6 tracking-tight">Powerful Features</h2>
+            <p className="text-lg text-muted-foreground">
+              Everything you need for comprehensive medical image analysis in one unified platform.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {steps.map((step, index) => (
-              <div key={index} className="relative">
-                <div className="card-medical p-8 text-center h-full">
-                  <div className="text-5xl font-bold text-accent/20 mb-4">{step.step}</div>
-                  <div className="h-16 w-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-6">
-                    <step.icon className="h-8 w-8 text-primary-foreground" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-foreground mb-3">{step.title}</h3>
-                  <p className="text-muted-foreground">{step.description}</p>
+          <BentoGrid className="max-w-6xl mx-auto">
+            <BentoGridItem
+              title={<span className="text-xl">AI X-Ray Analysis</span>}
+              description="State-of-the-art computer vision models to detect abnormalities with heatmaps and confidence scores."
+              header={<div className="flex flex-1 w-full h-full min-h-[6rem] rounded-xl overflow-hidden"><img src="/images/feature_xray_scan_1769245475435.png" alt="AI X-Ray Analysis" className="w-full h-full object-cover" /></div>}
+              icon={<Brain className="h-4 w-4 text-neutral-500" />}
+              className="md:col-span-2"
+            />
+            <BentoGridItem
+              title={<span className="text-xl">Instant Reporting</span>}
+              description="Generate detailed, exportable PDF reports for clinical reviews and patient records."
+              header={<div className="flex flex-1 w-full h-full min-h-[6rem] rounded-xl overflow-hidden"><img src="/images/hero_dashboard_1769245460172.png" alt="Instant Reporting" className="w-full h-full object-cover" /></div>}
+              icon={<ClipboardCheck className="h-4 w-4 text-neutral-500" />}
+              className="md:col-span-1"
+            />
+            <BentoGridItem
+              title={<span className="text-xl">Analytics Dashboard</span>}
+              description="Track your analysis history, common findings, and operational metrics over time."
+              header={<div className="flex flex-1 w-full h-full min-h-[6rem] rounded-xl overflow-hidden"><img src="/images/feature_analytics_1769245511189.png" alt="Analytics Dashboard" className="w-full h-full object-cover" /></div>}
+              icon={<BarChart2 className="h-4 w-4 text-neutral-500" />}
+              className="md:col-span-1"
+            />
+            <BentoGridItem
+              title={<span className="text-xl">Clinical Assistant</span>}
+              description="Chat with our AI assistant to get context-aware answers about medical conditions."
+              header={<div className="flex flex-1 w-full h-full min-h-[6rem] rounded-xl overflow-hidden"><img src="/images/feature_chatbot_1769245495974.png" alt="Clinical Assistant" className="w-full h-full object-cover" /></div>}
+              icon={<MessageSquare className="h-4 w-4 text-neutral-500" />}
+              className="md:col-span-2"
+            />
+          </BentoGrid>
+        </div>
+      </section>
+
+      {/* Simplified How It Works */}
+      <section className="py-24">
+        <div className="container mx-auto px-4">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <h2 className="text-3xl md:text-5xl font-bold mb-6 tracking-tight">Streamlined Workflow</h2>
+            <p className="text-lg text-muted-foreground">
+              From upload to diagnosis in four simple steps.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 max-w-6xl mx-auto relative">
+            {/* Connecting Line (Desktop) */}
+            <div className="hidden md:block absolute top-12 left-[10%] right-[10%] h-0.5 bg-gradient-to-r from-transparent via-border to-transparent -z-10" />
+
+            {[
+              { icon: Upload, title: 'Upload Scan', desc: 'Securely upload high-res X-ray images.' },
+              { icon: Zap, title: 'AI Analysis', desc: 'Advanced algorithms process the image.' },
+              { icon: UserCheck, title: 'Review', desc: 'Expert verification of AI findings.' },
+              { icon: Files, title: 'Report', desc: 'Download comprehensive PDF report.' }
+            ].map((item, index, arr) => (
+              <div key={index} className="relative flex flex-col items-center text-center bg-background p-4">
+                <div className="w-24 h-24 rounded-full bg-card border border-border shadow-lg flex items-center justify-center mb-6 z-10 relative group hover:border-primary/50 transition-colors">
+                  <item.icon className="h-10 w-10 text-primary group-hover:scale-110 transition-transform" />
                 </div>
-                {index < steps.length - 1 && (
-                  <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2">
-                    <ArrowRight className="h-8 w-8 text-muted-foreground/30" />
+                {/* Arrow connector between steps */}
+                {index < arr.length - 1 && (
+                  <div className="hidden md:flex absolute top-12 -right-4 transform translate-x-1/2 z-20">
+                    <ArrowRight className="h-6 w-6 text-primary" />
                   </div>
                 )}
+                <h3 className="text-xl font-bold mb-2">{item.title}</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">{item.desc}</p>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits Section */}
-      <section className="py-20 lg:py-28">
-        <div className="container mx-auto px-4">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-6">
-                Designed for Healthcare Excellence
-              </h2>
-              <p className="text-lg text-muted-foreground mb-8">
-                MediVision Buddy empowers healthcare professionals with AI-driven insights 
-                while maintaining the highest standards of accuracy and privacy.
-              </p>
-              <ul className="space-y-4">
-                {[
-                  'Real-time X-ray analysis with confidence scores',
-                  'Comprehensive symptom evaluation',
-                  'Educational AI explanations',
-                  'HIPAA-compliant data handling',
-                  'Continuous model improvements',
-                ].map((benefit, index) => (
-                  <li key={index} className="flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0" />
-                    <span className="text-foreground">{benefit}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button variant="medical" size="lg" className="mt-8" asChild>
-                <Link to="/register">
-                  Start Analyzing Now
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Link>
-              </Button>
-            </div>
-            <div className="relative">
-              <div className="aspect-square rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 p-8 flex items-center justify-center">
-                <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
-                  <div className="card-medical p-4 text-center">
-                    <Zap className="h-8 w-8 text-accent mx-auto mb-2" />
-                    <div className="text-sm font-medium">Fast Results</div>
-                  </div>
-                  <div className="card-medical p-4 text-center">
-                    <Shield className="h-8 w-8 text-primary mx-auto mb-2" />
-                    <div className="text-sm font-medium">Secure</div>
-                  </div>
-                  <div className="card-medical p-4 text-center">
-                    <Brain className="h-8 w-8 text-accent mx-auto mb-2" />
-                    <div className="text-sm font-medium">AI-Powered</div>
-                  </div>
-                  <div className="card-medical p-4 text-center">
-                    <Users className="h-8 w-8 text-primary mx-auto mb-2" />
-                    <div className="text-sm font-medium">Collaborative</div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 lg:py-28 hero-gradient">
+      <section className="py-16 md:py-24 relative overflow-hidden">
+        <div className="absolute inset-0 bg-primary/5 -z-10" />
+        <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-10" /> {/** Placeholder for pattern */}
+
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-display font-bold text-white mb-6">
-            Ready to Enhance Your Diagnostic Workflow?
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6 md:mb-8 tracking-tight max-w-3xl mx-auto leading-tight">
+            Ready to experience the future <span className="text-primary">of medical imaging?</span>
           </h2>
-          <p className="text-lg text-white/80 mb-8 max-w-2xl mx-auto">
-            Join healthcare professionals who are already using MediVision Buddy 
-            to support their medical decisions.
+          <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-8 md:mb-12 max-w-2xl mx-auto px-4">
+            Join thousands of medical professionals using MediVision to enhance their diagnostic capabilities.
           </p>
-          <Button variant="hero" size="xl" asChild>
-            <Link to="/register">
-              Get Started Free
-              <ArrowRight className="h-5 w-5 ml-2" />
-            </Link>
-          </Button>
+          <div className="flex flex-col md:flex-row justify-center gap-3 md:gap-4 px-4">
+            <Button asChild size="lg" className="h-12 md:h-14 px-6 md:px-10 text-base md:text-lg rounded-full shadow-lg shadow-primary/20 w-full md:w-auto">
+              <Link to="/register">
+                Create Free Account
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="h-12 md:h-14 px-6 md:px-10 text-base md:text-lg rounded-full w-full md:w-auto">
+              <Link to="/about">
+                Contact Sales
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
 

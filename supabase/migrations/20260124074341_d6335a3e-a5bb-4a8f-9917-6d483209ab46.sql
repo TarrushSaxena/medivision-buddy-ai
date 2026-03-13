@@ -134,7 +134,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.handle_new_user();
 
 -- Create storage bucket for X-ray images
-INSERT INTO storage.buckets (id, name, public) VALUES ('xray-images', 'xray-images', false);
+INSERT INTO storage.buckets (id, name, public) VALUES ('xray-images', 'xray-images', false) ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for X-ray images
 CREATE POLICY "Users can upload their own X-ray images" 

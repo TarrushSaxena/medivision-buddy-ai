@@ -5,16 +5,10 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { MedicalDisclaimer } from '@/components/MedicalDisclaimer';
-import {
-  Send,
-  Loader2,
-  Bot,
-  User,
-  Plus,
-} from 'lucide-react';
+import { chatAPI, xrayAPI, symptomsAPI } from '@/lib/api';
+import { Send, Loader2, User, Plus, Shield, Sparkles, FileImage, Stethoscope, HelpCircle, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface Message {
   id: string;
@@ -23,95 +17,234 @@ interface Message {
   createdAt: Date;
 }
 
-const SYSTEM_PROMPT = `You are MediVision Buddy, a friendly and knowledgeable AI medical assistant. Your role is to:
+interface XRayAnalysis {
+  id: string;
+  prediction: string;
+  confidence: number;
+  all_predictions: Record<string, number>;
+  notes: string | null;
+  created_at: string;
+}
 
-1. Help explain medical results from X-ray analyses and symptom checks
-2. Answer general questions about chest diseases (COVID-19, Pneumonia, Lung Opacity)
-3. Provide educational information about symptoms and conditions
-4. Offer general health precautions and wellness advice
+interface SymptomCheck {
+  id: string;
+  symptoms: string[];
+  risk_level: string;
+  recommendations: string[];
+  created_at: string;
+}
 
-IMPORTANT GUIDELINES:
-- Always remind users that you are an AI assistant and cannot replace professional medical advice
-- Be empathetic and supportive in your responses
-- Use clear, simple language that patients and medical students can understand
-- When discussing conditions, provide educational context but avoid making diagnoses
-- Encourage users to consult healthcare professionals for specific medical concerns
-- Be helpful with explaining medical terminology
+interface UserMedicalContext {
+  latestXRay: XRayAnalysis | null;
+  latestSymptom: SymptomCheck | null;
+  recentXRays: XRayAnalysis[];
+}
 
-Keep responses concise but informative. Use bullet points when listing multiple items.`;
+const buildSystemPrompt = (context: UserMedicalContext) => {
+  let prompt = `You are the Clinical AI Assistant, an educational medical AI integrated with the MediVision platform.
+
+## Your Capabilities:
+1. You have access to the user's medical analysis history from this platform
+2. Explain X-ray analysis results in plain language
+3. Clarify symptom assessment results
+4. Answer questions about chest conditions
+5. Provide general health information
+
+## Important Guidelines:
+- This is for EDUCATIONAL purposes only, not medical diagnosis
+- Always recommend consulting healthcare professionals for medical decisions
+- Be clear, precise, and explain medical terms when used
+- Reference the user's actual data when relevant
+
+`;
+
+  // Add user's latest X-ray context
+  if (context.latestXRay) {
+    const xray = context.latestXRay;
+    const predictionLabel = xray.prediction.replace('_', ' ').replace(/^\w/, c => c.toUpperCase());
+    prompt += `## User's Latest X-Ray Analysis (${format(new Date(xray.created_at), 'MMM d, yyyy HH:mm')}):
+- **Primary Finding:** ${predictionLabel}
+- **Confidence Score:** ${xray.confidence}%
+- **All Classifications:**
+  - Normal: ${xray.all_predictions.normal || 0}%
+  - COVID-19: ${xray.all_predictions.covid19 || 0}%
+  - Pneumonia: ${xray.all_predictions.pneumonia || 0}%
+  - Lung Opacity: ${xray.all_predictions.lung_opacity || 0}%
+${xray.notes ? `- **Clinical Notes:** ${xray.notes}` : ''}
+
+`;
+  } else {
+    prompt += `## User's X-Ray History:
+No X-ray analyses on record yet.
+
+`;
+  }
+
+  // Add user's latest symptom check context
+  if (context.latestSymptom) {
+    const symptom = context.latestSymptom;
+    const riskLabel = symptom.risk_level?.replace(/^\w/, c => c.toUpperCase()) || 'Unknown';
+    prompt += `## User's Latest Symptom Check (${format(new Date(symptom.created_at), 'MMM d, yyyy HH:mm')}):
+- **Risk Level:** ${riskLabel}
+- **Reported Symptoms:** ${symptom.symptoms?.join(', ') || 'None recorded'}
+- **Recommendations Given:** ${symptom.recommendations?.join('; ') || 'None'}
+
+`;
+  }
+
+  // Add count of historical analyses
+  if (context.recentXRays.length > 1) {
+    prompt += `## Analysis History Summary:
+The user has ${context.recentXRays.length} X-ray analyses on record.
+
+`;
+  }
+
+  prompt += `## Instructions:
+When the user asks about their "latest report", "my results", "my X-ray", or similar, refer to the data above.
+If they ask about specific terms or findings, explain them in the context of their actual results.
+If no data is available, let them know they haven't uploaded any analyses yet and guide them to do so.`;
+
+  return prompt;
+};
+
+const STARTER_PROMPTS = [
+  { icon: FileImage, text: "Explain my X-ray result", query: "Can you explain my latest X-ray analysis result?" },
+  { icon: HelpCircle, text: "What does my confidence score mean?", query: "What does the confidence score in my X-ray result mean?" },
+  { icon: Stethoscope, text: "What should I do next?", query: "Based on my latest results, what should I do next?" },
+  { icon: Activity, text: "Compare my results", query: "Can you summarize all my analysis history?" },
+];
 
 export default function Chat() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string>(() => 
-    crypto.randomUUID()
-  );
+  const [conversationId, setConversationId] = useState<string>(() => crypto.randomUUID());
+  const [medicalContext, setMedicalContext] = useState<UserMedicalContext>({
+    latestXRay: null,
+    latestSymptom: null,
+    recentXRays: [],
+  });
+  const [contextLoaded, setContextLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load conversation history
+  // Fetch user's medical context
   useEffect(() => {
-    const loadMessages = async () => {
+    const fetchMedicalContext = async () => {
       if (!user) return;
 
-      const { data } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
+      try {
+        // Fetch context from API
+        const context = await chatAPI.getContext();
 
-      if (data && data.length > 0) {
-        setMessages(
-          data.map((m) => ({
-            id: m.id,
-            role: m.role as 'user' | 'assistant',
-            content: m.content,
-            createdAt: new Date(m.created_at),
-          }))
-        );
-      } else {
-        // Add welcome message
-        setMessages([
-          {
-            id: 'welcome',
-            role: 'assistant',
-            content: `Hello! I'm MediVision Buddy, your AI medical assistant. 👋
+        const xrays = context.xrays?.map(x => ({
+          ...x,
+          all_predictions: x.all_predictions as unknown as Record<string, number>
+        })) || [];
 
-I can help you with:
-• Understanding X-ray analysis results
-• Explaining symptom checker assessments  
-• Answering questions about chest diseases
-• Providing general health information
+        const symptoms = context.symptoms?.map(s => ({
+          ...s,
+          symptoms: s.symptoms as unknown as string[],
+          recommendations: s.recommendations as unknown as string[]
+        })) || [];
 
-How can I assist you today?
+        setMedicalContext({
+          latestXRay: xrays[0] || null,
+          latestSymptom: symptoms[0] || null,
+          recentXRays: xrays,
+        });
+        setContextLoaded(true);
+      } catch (error) {
+        console.error('Error fetching medical context:', error);
+        setContextLoaded(true);
+      }
+    };
 
-*Remember: I'm an AI assistant and cannot replace professional medical advice.*`,
-            createdAt: new Date(),
-          },
-        ]);
+    fetchMedicalContext();
+  }, [user]);
+
+  const getWelcomeMessage = (): Message => {
+    const hasData = medicalContext.latestXRay || medicalContext.latestSymptom;
+
+    let content = `Hello! I'm the Clinical AI Assistant. 👋
+
+I have access to your MediVision analysis history and can help you understand:
+• Your X-ray analysis results
+• Symptom assessment findings
+• Medical terminology and conditions
+
+`;
+
+    if (hasData) {
+      content += `**Your Data:** `;
+      const dataParts = [];
+      if (medicalContext.latestXRay) {
+        dataParts.push(`Latest X-ray from ${format(new Date(medicalContext.latestXRay.created_at), 'MMM d')}`);
+      }
+      if (medicalContext.latestSymptom) {
+        dataParts.push(`Latest symptom check from ${format(new Date(medicalContext.latestSymptom.created_at), 'MMM d')}`);
+      }
+      content += dataParts.join(' • ') + '\n\n';
+    } else {
+      content += `**No analyses yet** - Upload an X-ray or check symptoms to get started!\n\n`;
+    }
+
+    content += `**Important:** I provide educational information only, not medical advice. Always consult a healthcare professional for medical decisions.
+
+How can I help you today?`;
+
+    return {
+      id: 'welcome',
+      role: 'assistant',
+      content,
+      createdAt: new Date(),
+    };
+  };
+
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!user || !contextLoaded) return;
+
+      try {
+        const data = await chatAPI.getMessages(conversationId);
+
+        if (data && data.length > 0) {
+          setMessages(
+            data.map((m: any) => ({
+              id: m._id || m.id,
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              createdAt: new Date(m.created_at),
+            }))
+          );
+        } else {
+          setMessages([getWelcomeMessage()]);
+        }
+      } catch (error) {
+        console.error('Error loading messages:', error);
+        setMessages([getWelcomeMessage()]);
       }
     };
 
     loadMessages();
-  }, [user, conversationId]);
+  }, [user, conversationId, contextLoaded]);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || !user || loading) return;
+  const sendMessage = async (messageText?: string) => {
+    const text = messageText || input.trim();
+    if (!text || !user || loading) return;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: input.trim(),
+      content: text,
       createdAt: new Date(),
     };
 
@@ -120,68 +253,24 @@ How can I assist you today?
     setLoading(true);
 
     try {
-      // Save user message
-      await supabase.from('chat_messages').insert({
-        user_id: user.id,
-        conversation_id: conversationId,
-        role: 'user',
-        content: userMessage.content,
-      });
-
-      // Call AI endpoint
-      const response = await supabase.functions.invoke('chat', {
-        body: {
-          messages: messages
-            .filter((m) => m.id !== 'welcome')
-            .concat(userMessage)
-            .map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-          systemPrompt: SYSTEM_PROMPT,
-        },
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message);
-      }
-
-      const assistantContent = response.data?.content || 
-        "I apologize, but I'm having trouble processing your request. Please try again.";
+      // Send message and get AI response
+      const response = await chatAPI.chat(text, conversationId);
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: assistantContent,
+        content: response.response || "I'm having trouble right now. Please try again.",
         createdAt: new Date(),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-
-      // Save assistant message
-      await supabase.from('chat_messages').insert({
-        user_id: user.id,
-        conversation_id: conversationId,
-        role: 'assistant',
-        content: assistantContent,
-      });
     } catch (error) {
-      console.error('Chat error:', error);
-      
-      // Provide a helpful fallback response
       const fallbackMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
         content: `I understand you're asking about "${userMessage.content}". 
 
-As your AI medical assistant, I'm here to help explain medical concepts and provide educational information. However, I'm currently experiencing some technical difficulties.
-
-In the meantime, here are some general tips:
-• Always consult with a healthcare professional for medical concerns
-• Keep track of your symptoms and any changes
-• Review your X-ray analysis results in the dashboard
-
-Please try again in a moment, or feel free to ask another question!`,
+I'm experiencing technical difficulties. Please try again or consult a healthcare professional for medical concerns.`,
         createdAt: new Date(),
       };
 
@@ -194,24 +283,7 @@ Please try again in a moment, or feel free to ask another question!`,
 
   const startNewConversation = () => {
     setConversationId(crypto.randomUUID());
-    setMessages([
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content: `Hello! I'm MediVision Buddy, your AI medical assistant. 👋
-
-I can help you with:
-• Understanding X-ray analysis results
-• Explaining symptom checker assessments  
-• Answering questions about chest diseases
-• Providing general health information
-
-How can I assist you today?
-
-*Remember: I'm an AI assistant and cannot replace professional medical advice.*`,
-        createdAt: new Date(),
-      },
-    ]);
+    setMessages([getWelcomeMessage()]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -221,27 +293,71 @@ How can I assist you today?
     }
   };
 
-  return (
-    <DashboardLayout title="AI Assistant">
-      <div className="max-w-4xl mx-auto space-y-4">
-        <MedicalDisclaimer variant="compact" />
+  const handleStarterClick = (query: string) => {
+    sendMessage(query);
+  };
 
-        <Card className="card-medical h-[calc(100vh-280px)] min-h-[500px] flex flex-col">
+  const showStarters = messages.length === 1 && messages[0].id === 'welcome';
+
+  return (
+    <DashboardLayout>
+      <div className="max-w-6xl mx-auto space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">Clinical AI Assistant</h1>
+            <p className="text-muted-foreground text-sm">
+              Ask about your X-ray results, symptoms, or medical terms
+            </p>
+          </div>
+
+          {/* Compact info buttons with tooltips */}
+          <div className="flex items-center gap-2">
+            {/* Context indicator */}
+            {medicalContext.latestXRay && (
+              <div className="group relative">
+                <button className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center hover:bg-primary/20 transition-colors">
+                  <FileImage className="h-4 w-4 text-primary" />
+                </button>
+                <div className="absolute right-0 top-full mt-2 w-72 p-3 rounded-lg bg-popover border border-border shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <p className="text-xs text-muted-foreground">
+                    <strong className="text-foreground">Connected:</strong> Your latest X-ray analysis ({medicalContext.latestXRay.prediction.replace('_', ' ')}, {medicalContext.latestXRay.confidence}% confidence) is available to the assistant.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Disclaimer */}
+            <div className="group relative">
+              <button className="h-9 w-9 rounded-lg bg-muted border border-border flex items-center justify-center hover:bg-muted/80 transition-colors">
+                <Shield className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <div className="absolute right-0 top-full mt-2 w-72 p-3 rounded-lg bg-popover border border-border shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                <p className="text-xs text-muted-foreground">
+                  <strong className="text-foreground">Educational Only:</strong> Always consult healthcare professionals for medical decisions.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <Card className="card-simple border-2 shadow-sm h-[calc(100vh-180px)] min-h-[600px] flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-border">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
-                <Bot className="h-5 w-5 text-primary-foreground" />
+                <Sparkles className="h-5 w-5 text-primary-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold">MediVision Buddy</h3>
+                <h3 className="font-medium">Clinical AI Assistant</h3>
                 <div className="flex items-center gap-1.5">
-                  <div className="status-dot status-online" />
-                  <span className="text-xs text-muted-foreground">Online</span>
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="text-xs text-muted-foreground">
+                    {contextLoaded ? 'Connected to your data' : 'Loading...'}
+                  </span>
                 </div>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={startNewConversation}>
+            <Button variant="outline" size="sm" onClick={startNewConversation}>
               <Plus className="h-4 w-4 mr-2" />
               New Chat
             </Button>
@@ -261,32 +377,61 @@ How can I assist you today?
                   <div
                     className={cn(
                       'h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0',
-                      message.role === 'user' ? 'bg-accent' : 'bg-primary'
+                      message.role === 'user' ? 'bg-muted' : 'bg-primary'
                     )}
                   >
                     {message.role === 'user' ? (
-                      <User className="h-4 w-4 text-accent-foreground" />
+                      <User className="h-4 w-4 text-muted-foreground" />
                     ) : (
-                      <Bot className="h-4 w-4 text-primary-foreground" />
+                      <Sparkles className="h-4 w-4 text-primary-foreground" />
                     )}
                   </div>
                   <div
                     className={cn(
-                      'max-w-[80%]',
-                      message.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'
+                      'max-w-[80%] rounded-2xl px-4 py-3',
+                      message.role === 'user'
+                        ? 'bg-primary text-primary-foreground rounded-br-sm'
+                        : 'bg-muted rounded-bl-sm'
                     )}
                   >
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   </div>
                 </div>
               ))}
+
+              {/* Starter Prompts */}
+              {showStarters && (
+                <div className="mt-6">
+                  <p className="text-xs text-muted-foreground mb-3 text-center">Quick questions about your data:</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {STARTER_PROMPTS.map((prompt, index) => (
+                      <button
+                        key={index}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted hover:bg-muted/80 text-sm transition-colors"
+                        onClick={() => handleStarterClick(prompt.query)}
+                      >
+                        <prompt.icon className="h-4 w-4 text-primary" />
+                        {prompt.text}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {loading && (
                 <div className="flex gap-3">
                   <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                    <Bot className="h-4 w-4 text-primary-foreground" />
+                    <Sparkles className="h-4 w-4 text-primary-foreground" />
                   </div>
-                  <div className="chat-bubble-assistant">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                  <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm text-muted-foreground mr-2">MediVision AI is thinking</span>
+                      <span className="flex gap-1 h-1.5 items-center">
+                        <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                        <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                        <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce"></span>
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -298,19 +443,14 @@ How can I assist you today?
             <div className="flex gap-2">
               <Input
                 ref={inputRef}
-                placeholder="Ask me anything about your results..."
+                placeholder="Ask about your X-ray results, symptoms, or medical terms..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 disabled={loading}
-                className="flex-1"
+                className="h-11"
               />
-              <Button
-                variant="medical"
-                size="icon"
-                onClick={sendMessage}
-                disabled={!input.trim() || loading}
-              >
+              <Button onClick={() => sendMessage()} disabled={!input.trim() || loading} size="lg">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
