@@ -7,6 +7,10 @@ import cv2
 import io
 from PIL import Image
 import os
+import tensorflow as tf
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
+from tensorflow.keras.applications import DenseNet201
+from tensorflow.keras.models import Model
 
 app = FastAPI()
 
@@ -21,13 +25,37 @@ app.add_middleware(
 class ImageData(BaseModel):
     image_data: str
 
-# In a real scenario, we load the model here:
-# MODEL_PATH = "models/densenet201_covid.h5"
-# if os.path.exists(MODEL_PATH):
-#     import tensorflow as tf
-#     model = tf.keras.models.load_model(MODEL_PATH)
-# else:
-#     model = None
+# Build the DenseNet201 architecture as defined in the Jupyter Notebook
+def build_model():
+    base_model = DenseNet201(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+    
+    # Custom classifier layers
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(256, activation='relu')(x)
+    x = Dropout(0.2)(x)
+    x = Dense(128, activation='relu')(x)
+    x = Dropout(0.2)(x)
+    output = Dense(3, activation='softmax')(x)
+    
+    model = Model(inputs=base_model.input, outputs=output)
+    return model
+
+# Global model instance
+print("Initializing DenseNet201 model architecture...")
+model = build_model()
+
+# Try to load weights if they exist
+WEIGHTS_PATH = "Model_DNet.h5"
+if os.path.exists(WEIGHTS_PATH):
+    print(f"Loading weights from {WEIGHTS_PATH}...")
+    try:
+        model.load_weights(WEIGHTS_PATH)
+        print("Weights loaded successfully.")
+    except Exception as e:
+        print(f"Failed to load weights: {e}")
+else:
+    print(f"WARNING: '{WEIGHTS_PATH}' not found. Using randomly initialized top-layer weights. Predictions will be inaccurate until the trained weights are provided in the server directory.")
 
 def preprocess_image(base64_string):
     # Remove the data URL prefix if present
@@ -51,8 +79,7 @@ def preprocess_image(base64_string):
     # Convert back to RGB format sizes expected by DenseNet201
     clahe_rgb = cv2.cvtColor(clahe_image, cv2.COLOR_GRAY2RGB)
     
-    # Resize to the input shape expected by the model (e.g., 224x224 or 256x256)
-    # The notebook doesn't specify the exact input size in the previewed code, but 224x224 is standard for DenseNet
+    # Resize to the input shape expected by the model (224x224)
     resized_img = cv2.resize(clahe_rgb, (224, 224))
     
     # Normalize pixel values
@@ -67,25 +94,31 @@ async def predict_xray(data: ImageData):
         # 1. Preprocess the image
         processed_image = preprocess_image(data.image_data)
         
-        # 2. Predict using the model
-        # if model is not None:
-        #     predictions = model.predict(processed_image)[0]
-        #     # Interpret predictions based on the class indices from the notebook
-        #     # Assuming classes: 0: COVID-19, 1: Lung_Opacity, 2: Normal, 3: Viral Pneumonia
-        #     pass
-        # else:
+        # 2. Predict using the DenseNet201 model
+        preds = model.predict(processed_image)[0]
         
-        # --- MOCK PREDICTION ---
-        # While we wait for the real weights file, we return a mock structured response
-        import random
-        scores = {
-            "covid19": random.uniform(0.0, 0.3),
-            "pneumonia": random.uniform(0.0, 0.3),
-            "lung_opacity": random.uniform(0.0, 0.3),
-            "normal": random.uniform(0.5, 0.9),
+        # The notebook uses 3 classes: COVID-19, Normal, Non-COVID
+        # Assuming folder alphabetical order for class indices (Keras default):
+        # 0: COVID-19
+        # 1: Non-COVID (e.g. pneumonia/lung opacity)
+        # 2: Normal
+        # Let's map these 3 outputs to the 4 variables expected by the React frontend:
+        
+        conf_covid19 = float(preds[0]) * 100
+        conf_non_covid = float(preds[1]) * 100
+        conf_normal = float(preds[2]) * 100
+        
+        # We split the "Non-COVID" probability across pneumonia and lung_opacity
+        # since the frontend UI expects those 4 distinct categories.
+        conf_pneumonia = conf_non_covid * 0.5
+        conf_lung_opacity = conf_non_covid * 0.5
+        
+        normalized = {
+            "covid19": round(conf_covid19, 1),
+            "pneumonia": round(conf_pneumonia, 1),
+            "lung_opacity": round(conf_lung_opacity, 1),
+            "normal": round(conf_normal, 1),
         }
-        total = sum(scores.values())
-        normalized = {k: round((v / total) * 100, 1) for k, v in scores.items()}
         
         max_class = max(normalized, key=normalized.get)
         max_conf = normalized[max_class]
@@ -100,4 +133,5 @@ async def predict_xray(data: ImageData):
 
 if __name__ == "__main__":
     import uvicorn
+    # Make sure to run the server on port 8000
     uvicorn.run(app, host="0.0.0.0", port=8000)
