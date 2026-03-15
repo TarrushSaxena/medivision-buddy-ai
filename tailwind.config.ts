@@ -80,6 +80,12 @@ export default {
           "4": "hsl(var(--chart-4))",
           "5": "hsl(var(--chart-5))",
         },
+        "bio-emerald": {
+          DEFAULT: "hsl(var(--bio-emerald))",
+          light: "hsl(var(--bio-emerald-light))",
+          dark: "hsl(var(--bio-emerald-dark))",
+        },
+        "midnight-cobalt": "hsl(var(--midnight-cobalt))",
       },
       borderRadius: {
         lg: "var(--radius)",

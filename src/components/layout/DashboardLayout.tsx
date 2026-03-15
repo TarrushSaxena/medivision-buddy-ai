@@ -1,4 +1,5 @@
 import { ReactNode, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import {
   Home,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ClinicalPulseFAB } from './ClinicalPulseFAB';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -53,7 +55,7 @@ export const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
@@ -61,14 +63,30 @@ export const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  isActive
-                    ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                  'group relative flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-300',
+                  isActive 
+                    ? 'text-white' 
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
                 )}
               >
-                <item.icon className="h-5 w-5" />
-                {item.label}
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebar-active"
+                    className="absolute inset-0 bg-primary shadow-lg shadow-primary/30 rounded-2xl z-0"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <div className="relative z-10 flex items-center gap-3">
+                  <item.icon className={cn("h-5 w-5 transition-transform duration-300 group-hover:scale-110", isActive && "text-white")} />
+                  <span>{item.label}</span>
+                </div>
+                {isActive && (
+                  <motion.div 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white/50 backdrop-blur-sm shadow-[0_0_10px_rgba(255,255,255,0.5)]"
+                  />
+                )}
               </Link>
             );
           })}
@@ -181,7 +199,44 @@ export const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
             {children}
           </div>
         </div>
+        <ClinicalPulseFAB />
       </main>
+
+      {/* Global Optical Engine (Liquid Glass Refraction Filter) */}
+      <svg className="fixed h-0 w-0 opacity-0 pointer-events-none" aria-hidden="true">
+        <defs>
+          <filter id="liquid-refraction">
+            {/* Fractal noise for organic displacement */}
+            <feTurbulence 
+              type="fractalNoise" 
+              baseFrequency="0.01" 
+              numOctaves="2" 
+              result="noise"
+              seed="1" 
+            />
+            
+            {/* Increase contrast of noise for better refraction map */}
+            <feColorMatrix 
+              in="noise" 
+              type="matrix" 
+              values="1 0 0 0 0
+                      0 1 0 0 0
+                      0 0 1 0 0
+                      0 0 0 10 -4" 
+              result="refractionMap" 
+            />
+
+            {/* Apply displacement to the SourceGraphic (or Backdrop) */}
+            <feDisplacementMap 
+              in="SourceGraphic" 
+              in2="refractionMap" 
+              scale="8" 
+              xChannelSelector="R" 
+              yChannelSelector="G" 
+            />
+          </filter>
+        </defs>
+      </svg>
     </div>
   );
 };

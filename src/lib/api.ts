@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 // Token management
 const getToken = (): string | null => {
@@ -27,7 +27,9 @@ const apiRequest = async <T>(
     };
 
     try {
-        console.log(`API Request: ${options.method || 'GET'} ${endpoint}`, options.body ? 'with body' : '');
+        if (import.meta.env.DEV) {
+            console.log(`API Request: ${options.method || 'GET'} ${endpoint}`, options.body ? 'with body' : '');
+        }
         const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             ...options,
             headers,
@@ -35,7 +37,9 @@ const apiRequest = async <T>(
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('API Error Response:', response.status, errorText);
+            if (import.meta.env.DEV) {
+                console.error('API Error Response:', response.status, errorText);
+            }
             let error;
             try {
                 error = JSON.parse(errorText);
@@ -46,7 +50,9 @@ const apiRequest = async <T>(
         }
 
         const data = await response.json();
-        console.log(`API Success: ${endpoint}`, data);
+        if (import.meta.env.DEV) {
+            console.log(`API Success: ${endpoint}`, data);
+        }
         return data;
     } catch (error) {
         console.error('API Request Failed:', error);
@@ -145,7 +151,8 @@ export const symptomsAPI = {
 
     create: (data: {
         symptoms: any;
-        analysis_result: any;
+        additional_info?: string;
+        analysis_result?: any;
         risk_level?: string;
         recommendations?: string[];
     }) => apiRequest<any>('/symptoms', {

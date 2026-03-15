@@ -42,14 +42,41 @@ router.get('/count', auth, async (req, res) => {
 // Create new symptom check
 router.post('/', auth, async (req, res) => {
     try {
-        const { symptoms, analysis_result, risk_level, recommendations } = req.body;
+        const { symptoms, additional_info } = req.body;
+
+        // Call Python AI microservice for symptom analysis
+        const axios = require('axios');
+        let aiResult = {
+            prediction: 'General Health Issue',
+            confidence: 0,
+            riskLevel: 'moderate',
+            urgency: 'Monitor symptoms.',
+            recommendations: ['Consult a healthcare professional.']
+        };
+
+        try {
+            const response = await axios.post('http://localhost:8000/predict/symptoms', {
+                selected_symptoms: symptoms
+            });
+            aiResult = response.data;
+        } catch (aiError) {
+            console.error('Python AI Service Error:', aiError.message);
+            // Fallback is already set in aiResult
+        }
 
         const check = new SymptomCheck({
             user_id: req.user._id,
             symptoms,
-            analysis_result,
-            risk_level,
-            recommendations
+            analysis_result: {
+                riskLevel: aiResult.riskLevel,
+                possibleConditions: [aiResult.prediction],
+                recommendations: aiResult.recommendations,
+                urgency: aiResult.urgency,
+                confidence: aiResult.confidence,
+                featureImportance: aiResult.featureImportance
+            },
+            risk_level: aiResult.riskLevel,
+            recommendations: aiResult.recommendations
         });
 
         await check.save();

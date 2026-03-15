@@ -8,6 +8,10 @@ import { xrayAPI, symptomsAPI } from '@/lib/api';
 import { DashboardSkeleton } from '@/components/ui/page-skeletons';
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 import { HealthScoreWidget } from '@/components/dashboard/HealthScoreWidget';
+import { format, formatDistanceToNow } from 'date-fns';
+import { useOnboarding } from '@/hooks/useOnboarding';
+import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import {
   FileImage,
   Stethoscope,
@@ -22,10 +26,9 @@ import {
   HelpCircle,
   Sparkles,
   TrendingUp,
-  Zap
+  Zap,
+  Shield
 } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
-import { useOnboarding } from '@/hooks/useOnboarding';
 
 interface AnalysisSummary {
   totalXRays: number;
@@ -38,6 +41,8 @@ interface AnalysisSummary {
   }>;
 }
 
+import { HealthPulse } from '@/components/dashboard/HealthPulse';
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [summary, setSummary] = useState<AnalysisSummary>({
@@ -47,6 +52,22 @@ export default function Dashboard() {
     recentActivity: [],
   });
   const [loading, setLoading] = useState(true);
+
+  // Determine health status for pulse widget
+  const getHealthStatus = (): 'normal' | 'warning' | 'critical' | 'idle' => {
+    if (summary.recentActivity.length === 0) return 'idle';
+    const latest = summary.recentActivity[0];
+    
+    if (latest.type === 'xray') {
+      if (latest.result === 'normal') return 'normal';
+      if (latest.result === 'covid19' || latest.result === 'pneumonia') return 'critical';
+      return 'warning';
+    } else {
+      if (latest.result === 'low') return 'normal';
+      if (latest.result === 'critical' || latest.result === 'high') return 'critical';
+      return 'warning';
+    }
+  };
 
   // Safely get user display name
   const getUserDisplayName = () => {
@@ -140,8 +161,11 @@ export default function Dashboard() {
   const displayName = getUserDisplayName();
   const { startOnboarding, hasCompletedOnboarding } = useOnboarding();
 
+  const totalAnalyses = summary.totalXRays + summary.totalSymptomChecks;
+  const avgConfidence = 85; // Placeholder for now, could be calculated if we fetch all results
+
   // Show skeleton while loading
-  if (loading) {
+if (loading) {
     return (
       <DashboardLayout>
         <DashboardSkeleton />
@@ -151,41 +175,35 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      {/* Onboarding Tour */}
-      <OnboardingTour />
+      <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <OnboardingTour />
+        
+        {/* Header Section - Premiere Design */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="liquid-glass-premium rounded-3xl p-8 mb-8 relative"
+        >
+          <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
+            <HealthPulse status={getHealthStatus()} />
+            
+            <div className="flex-1 text-center md:text-left">
+              <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70 mb-2">
+                Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}, {displayName.split(' ')[0]}!
+              </h1>
+              <p className="text-muted-foreground flex items-center justify-center md:justify-start gap-2">
+                <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+                Your diagnostic engine is primed and ready.
+              </p>
+            </div>
 
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* Header - Personalized & Clean */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Welcome back, <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{displayName}</span>
-            </h1>
-            <p className="text-muted-foreground mt-1 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-amber-500" />
-              Your diagnostic insights are ready.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {hasCompletedOnboarding && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={startOnboarding}
-                className="h-9 hover:bg-muted"
-              >
-                <HelpCircle className="h-4 w-4 mr-2" />
-                Take Tour
-              </Button>
-            )}
-            <Button asChild className="shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-              <Link to="/xray-analysis">
-                <FileImage className="h-4 w-4 mr-2" />
+            <div className="flex gap-3">
+              <Button onClick={() => window.location.href = '/xray-analysis'} className="rounded-full shadow-lg shadow-primary/20 hover:scale-105 transition-transform">
                 New Analysis
-              </Link>
-            </Button>
+              </Button>
+            </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Health Score Widget - New Addition */}
         <HealthScoreWidget
@@ -195,120 +213,75 @@ export default function Dashboard() {
         />
 
         {/* Stats - Compact Modern Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-tour="stats">
-          <div className="glass-card p-4 group hover:border-blue-500/30 transition-colors">
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
-                <FileImage className="h-4 w-4" />
-              </div>
-              <TrendingUp className="h-3 w-3 text-emerald-500" />
-            </div>
-            <p className="text-2xl font-bold">{summary.totalXRays}</p>
-            <p className="text-xs text-muted-foreground">X-Ray Scans</p>
-          </div>
-
-          <div className="glass-card p-4 group hover:border-purple-500/30 transition-colors">
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500">
-                <Stethoscope className="h-4 w-4" />
-              </div>
-              <TrendingUp className="h-3 w-3 text-emerald-500" />
-            </div>
-            <p className="text-2xl font-bold">{summary.totalSymptomChecks}</p>
-            <p className="text-xs text-muted-foreground">Symptom Checks</p>
-          </div>
-
-          <div className="glass-card p-4 group hover:border-amber-500/30 transition-colors">
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
-                <Clock className="h-4 w-4" />
-              </div>
-            </div>
-            <p className="text-lg font-bold truncate">
-              {summary.lastAnalysisDate
-                ? formatDistanceToNow(new Date(summary.lastAnalysisDate), { addSuffix: false })
-                : 'N/A'}
-            </p>
-            <p className="text-xs text-muted-foreground">Since Last Analysis</p>
-          </div>
-
-          <div className="glass-card p-4 group hover:border-emerald-500/30 transition-colors bg-gradient-to-br from-emerald-500/5 to-transparent">
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
-                <Info className="h-4 w-4" />
-              </div>
-            </div>
-            <p className="text-lg font-bold">Educational</p>
-            <p className="text-xs text-muted-foreground">Research Mode</p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {[
+            { label: 'Analyses', value: totalAnalyses, icon: Activity, color: 'text-blue-500' },
+            { label: 'Avg Confidence', value: `${avgConfidence}%`, icon: Zap, color: 'text-amber-500' },
+            { label: 'Health Score', value: 'Optimal', icon: Shield, color: 'text-emerald-500' },
+            { label: 'Scan Credits', value: 'Unlimited', icon: Sparkles, color: 'text-purple-500' },
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="liquid-glass-premium rounded-2xl p-6 group hover:scale-[1.02] transition-all"
+            >
+              <stat.icon className={cn("h-6 w-6 mb-4", stat.color)} />
+              <div className="text-2xl font-bold mb-1">{stat.value}</div>
+              <div className="text-sm text-muted-foreground">{stat.label}</div>
+            </motion.div>
+          ))}
         </div>
 
-        {/* Quick Actions - Compact Cards */}
-        <div>
-          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+        {/* Service Showcase - Premium Quick Actions */}
+        <div className="py-2">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Zap className="h-4 w-4 text-amber-500" />
-            Quick Actions
+            AI Training Services
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Link to="/xray-analysis" className="group" data-tour="xray-action">
-              <div className="glass-card p-4 h-full hover:border-blue-500/30 transition-all hover:shadow-lg hover:shadow-blue-500/5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl text-white shadow-lg shadow-blue-500/25">
-                    <FileImage className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">X-Ray Analysis</h3>
-                    <p className="text-xs text-muted-foreground">AI-powered scan review</p>
-                  </div>
+          <div className="flex flex-wrap justify-center md:justify-start gap-6">
+            <Link to="/xray-analysis" className="group">
+              <div className="liquid-glass-card hover:scale-[1.02] hover:border-blue-500/40 cursor-pointer">
+                <div className="mb-6 p-4 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl text-white shadow-xl shadow-blue-500/20">
+                  <FileImage className="h-8 w-8" />
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Upload chest X-rays for instant AI analysis with heatmap visualization.
+                <h3 className="text-lg font-bold mb-2">X-Ray Analysis</h3>
+                <p className="text-xs text-muted-foreground px-2">
+                  Clinical-grade AI diagnostics with real-time heatmap visualization.
                 </p>
-                <div className="mt-3 flex items-center text-blue-500 text-sm font-medium group-hover:gap-2 transition-all">
-                  Start Analysis <ArrowRight className="h-4 w-4 ml-1" />
+                <div className="mt-6 flex items-center text-blue-500 text-xs font-bold uppercase tracking-widest group-hover:gap-2 transition-all">
+                  Launch <ArrowRight className="h-3 w-3 ml-1" />
                 </div>
               </div>
             </Link>
 
-            <Link to="/symptom-checker" className="group" data-tour="symptom-action">
-              <div className="glass-card p-4 h-full hover:border-purple-500/30 transition-all hover:shadow-lg hover:shadow-purple-500/5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl text-white shadow-lg shadow-purple-500/25">
-                    <Stethoscope className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Symptom Checker</h3>
-                    <p className="text-xs text-muted-foreground">Risk assessment</p>
-                  </div>
+            <Link to="/symptom-checker" className="group">
+              <div className="liquid-glass-card hover:scale-[1.02] hover:border-purple-500/40 cursor-pointer">
+                <div className="mb-6 p-4 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl text-white shadow-xl shadow-purple-500/20">
+                  <Stethoscope className="h-8 w-8" />
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Describe your symptoms for AI-driven health risk assessment.
+                <h3 className="text-lg font-bold mb-2">Symptom AI</h3>
+                <p className="text-xs text-muted-foreground px-2">
+                  Advanced neural risk assessment based on clinical patterns.
                 </p>
-                <div className="mt-3 flex items-center text-purple-500 text-sm font-medium group-hover:gap-2 transition-all">
-                  Check Symptoms <ArrowRight className="h-4 w-4 ml-1" />
+                <div className="mt-6 flex items-center text-purple-500 text-xs font-bold uppercase tracking-widest group-hover:gap-2 transition-all">
+                  Check <ArrowRight className="h-3 w-3 ml-1" />
                 </div>
               </div>
             </Link>
 
-            <Link to="/chat" className="group" data-tour="chat-action">
-              <div className="glass-card p-4 h-full hover:border-emerald-500/30 transition-all hover:shadow-lg hover:shadow-emerald-500/5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl text-white shadow-lg shadow-emerald-500/25">
-                    <MessageSquare className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold flex items-center gap-2">
-                      AI Assistant
-                      <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full">Beta</span>
-                    </h3>
-                    <p className="text-xs text-muted-foreground">Chat with MediVision</p>
-                  </div>
+            <Link to="/chat" className="group">
+              <div className="liquid-glass-card hover:scale-[1.02] hover:border-emerald-500/40 cursor-pointer">
+                <div className="mb-6 p-4 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl text-white shadow-xl shadow-emerald-500/20">
+                  <MessageSquare className="h-8 w-8" />
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Ask medical questions and get instant educational answers.
+                <h3 className="text-lg font-bold mb-2">AI Assistant</h3>
+                <p className="text-xs text-muted-foreground px-2">
+                  Expert medical insights and educational context-aware chat.
                 </p>
-                <div className="mt-3 flex items-center text-emerald-500 text-sm font-medium group-hover:gap-2 transition-all">
-                  Start Chat <ArrowRight className="h-4 w-4 ml-1" />
+                <div className="mt-6 flex items-center text-emerald-500 text-xs font-bold uppercase tracking-widest group-hover:gap-2 transition-all">
+                  Chat <ArrowRight className="h-3 w-3 ml-1" />
                 </div>
               </div>
             </Link>

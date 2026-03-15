@@ -38,9 +38,9 @@ export default function Register() {
 
       toast({
         title: 'Success',
-        description: 'Check your email to confirm',
+        description: 'Account created successfully!',
       });
-      navigate('/login');
+      navigate('/dashboard');
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -90,7 +90,7 @@ export default function Register() {
                   placeholder="Dr. John Smith"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="pl-10 bg-white text-foreground"
+                  className="pl-10 bg-slate-900/50 border-white/10 text-white placeholder:text-muted-foreground focus:ring-bio-emerald"
                   required
                 />
               </div>
@@ -106,7 +106,7 @@ export default function Register() {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 bg-white text-foreground"
+                  className="pl-10 bg-slate-900/50 border-white/10 text-white placeholder:text-muted-foreground focus:ring-bio-emerald"
                   required
                 />
               </div>
@@ -122,7 +122,7 @@ export default function Register() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-white text-foreground"
+                  className="pl-10 bg-slate-900/50 border-white/10 text-white placeholder:text-muted-foreground focus:ring-bio-emerald"
                   required
                   minLength={6}
                 />

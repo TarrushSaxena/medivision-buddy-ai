@@ -82,17 +82,10 @@ router.post('/upload', auth, async (req, res) => {
             pythonPrediction = pythonResponse.data;
         } catch (mlError) {
             console.error('Error reaching Python ML service:', mlError.message);
-            // Fallback strategy if python service is down
-            pythonPrediction = {
-                prediction: 'normal',
-                confidence: 85.0,
-                all_predictions: {
-                    covid19: 5.0,
-                    pneumonia: 5.0,
-                    lung_opacity: 5.0,
-                    normal: 85.0
-                }
-            };
+            return res.status(503).json({ 
+                error: 'Medical AI service is currently unavailable. Please try again later or contact support.',
+                code: 'ML_SERVICE_DOWN'
+            });
         }
 
         // Store image as base64 data URL
@@ -101,10 +94,11 @@ router.post('/upload', auth, async (req, res) => {
         const analysis = new XRayAnalysis({
             user_id: req.user._id,
             image_url: imageUrl,
-            image_data,
+            image_data: image_data,
             prediction: pythonPrediction.prediction,
             confidence: pythonPrediction.confidence,
             all_predictions: pythonPrediction.all_predictions,
+            heatmap_image: pythonPrediction.heatmap_image, // Add this field
             notes
         });
 

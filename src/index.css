@@ -126,6 +126,12 @@
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 240 4% 16%;
     --sidebar-ring: 217 91% 60%;
+
+    /* Neural Membrane Palette */
+    --midnight-cobalt: 222 100% 7%;
+    --bio-emerald: 161 94% 30%;
+    --bio-emerald-light: 161 94% 60%; /* Lighter for better contrast */
+    --membrane-border: 161 94% 30% / 0.2;
   }
 }
 
@@ -317,23 +323,84 @@
     border: 1px solid hsl(var(--border) / 0.5);
   }
 
-  /* Glass Card - Premium card with frosted effect */
+  /* Glass Card - Responsive Standard Glass */
   .glass-card {
-    background: hsl(var(--card) / 0.8);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid hsl(var(--border) / 0.3);
-    box-shadow:
-      0 8px 32px hsl(var(--foreground) / 0.04),
-      0 0 0 1px hsl(var(--border) / 0.1) inset;
-    @apply rounded-xl;
+    @apply bg-card/70 backdrop-blur-md rounded-2xl border border-border/50;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
   }
 
   .glass-card:hover {
-    box-shadow:
-      0 16px 48px hsl(var(--foreground) / 0.06),
-      0 0 0 1px hsl(var(--border) / 0.15) inset;
-    border-color: hsl(var(--primary) / 0.2);
+    @apply border-primary/20 shadow-lg shadow-primary/5;
+  }
+
+  /* Liquid Glass Card - Premium UI with depth */
+  .liquid-glass-card {
+    --glass-width: 240px;
+    --glass-height: 320px;
+    width: var(--glass-width);
+    height: var(--glass-height);
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.1),
+      inset 0 1px 1px rgba(255, 255, 255, 0.4),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.1),
+      inset 0 0 32px 4px rgba(255, 255, 255, 0.2);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  .dark .liquid-glass-card {
+    background: rgba(23, 23, 23, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.4),
+      inset 0 0 32px 4px rgba(255, 255, 255, 0.03);
+  }
+
+  .liquid-glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.8),
+      transparent
+    );
+  }
+
+  .liquid-glass-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.8),
+      transparent,
+      rgba(255, 255, 255, 0.3)
+    );
+  }
+
+  .glass-overlay {
+    @apply fixed inset-0 z-[100] flex items-center justify-center bg-background/40 backdrop-blur-md animate-in;
   }
 
   /* Glass Navbar */
@@ -374,17 +441,51 @@
   }
 
   @keyframes gradientRotate {
-    0% {
-      background-position: 0% 50%;
-    }
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
 
-    50% {
-      background-position: 100% 50%;
-    }
+  /* Premium Ripple & Liquid Effects */
+  @keyframes ripple {
+    0% { transform: scale(0.8); opacity: 0.5; }
+    100% { transform: scale(1.1); opacity: 0; }
+  }
 
-    100% {
-      background-position: 0% 50%;
-    }
+  @keyframes liquid-pulse {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .ripple-effect {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ripple-effect::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+    opacity: 0.1;
+    transform: translate(-50%, -50%) scale(0);
+    animation: ripple 2s infinite;
+    pointer-events: none;
+  }
+
+  .upload-zone-premium {
+    @apply relative border-2 border-dashed border-border rounded-3xl transition-all duration-500 overflow-hidden;
+    background: linear-gradient(270deg, rgba(var(--primary-rgb), 0.02), rgba(var(--primary-rgb), 0.05), rgba(var(--primary-rgb), 0.02));
+    background-size: 200% 200%;
+  }
+
+  .upload-zone-premium.dragging {
+    @apply border-primary scale-[1.02] shadow-2xl shadow-primary/10;
+    animation: liquid-pulse 3s ease infinite;
+    background: rgba(var(--primary-rgb), 0.08);
   }
 
   /* Glow Effect */
@@ -496,7 +597,144 @@
   @apply bg-muted-foreground/30;
 }
 
+/* Crystal Glass System - Optimized for Performance & Visibility */
+.liquid-glass-premium {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    inset 0 0 24px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.dark .liquid-glass-premium {
+  background: rgba(15, 15, 15, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 
+    0 12px 48px rgba(0, 0, 0, 0.4),
+    inset 0 0 40px rgba(255, 255, 255, 0.03);
+}
+
+/* Simulated Refraction Light Leak */
+.liquid-glass-premium::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle at center,
+    rgba(var(--primary-rgb), 0.08) 0%,
+    transparent 60%
+  );
+  animation: liquid-leak 12s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes liquid-leak {
+  0% { transform: rotate(0deg) translate(-10%, -10%); }
+  50% { transform: rotate(180deg) translate(10%, 10%); }
+  100% { transform: rotate(360deg) translate(-10%, -10%); }
+}
+
+.liquid-glass-premium > * {
+  position: relative;
+  z-index: 1;
+}
+
+.liquid-glass-premium:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(var(--primary-rgb), 0.2);
+}
+
+/* Text Crystal Shine Effect */
+.text-crystal-shine {
+  background: linear-gradient(
+    to right,
+    hsl(var(--foreground)) 20%,
+    hsl(var(--primary)) 40%,
+    hsl(var(--accent)) 60%,
+    hsl(var(--foreground)) 80%
+  );
+  background-size: 200% auto;
+  color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: crystal-shine 6s linear infinite;
+}
+
+@keyframes crystal-shine {
+  to { background-position: 200% center; }
+}
+
+/* Hardware Accelerated Scroll Containers */
+.smooth-scroll-container {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  will-change: transform;
+}
+
 /* Selection */
 ::selection {
   @apply bg-primary/20 text-foreground;
+}
+
+/* Neural Membrane Animations */
+@keyframes membrane-expand {
+  0% { transform: scale(0.98); opacity: 0.8; }
+  50% { transform: scale(1.02); opacity: 1; filter: saturate(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes synapse-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.animate-membrane {
+  animation: membrane-expand 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.bio-glow {
+  box-shadow: 
+    0 0 20px hsla(var(--bio-emerald), 0.2),
+    inset 0 0 10px hsla(var(--bio-emerald), 0.1);
+}
+/* --- FINAL STABILIZATION UTILITIES --- */
+html, body {
+  background-color: #060b28 !important; /* Midnight Cobalt */
+  color: #f8fafc !important;
+}
+
+.bg-bio-emerald {
+  background-color: #059669 !important; /* Medical Emerald */
+  color: white !important;
+}
+
+.bg-bio-emerald-light {
+  background-color: #10b981 !important;
+  color: white !important;
+}
+
+.text-bio-emerald-light {
+  color: #10b981 !important;
+}
+
+.bg-midnight-cobalt {
+  background-color: #060b28 !important;
+}
+
+.bio-glow-strong {
+  box-shadow: 0 0 40px #05966960 !important;
 }

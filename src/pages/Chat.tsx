@@ -403,11 +403,11 @@ I'm experiencing technical difficulties. Please try again or consult a healthcar
               {showStarters && (
                 <div className="mt-6">
                   <p className="text-xs text-muted-foreground mb-3 text-center">Quick questions about your data:</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
+                  <div className="flex flex-wrap gap-3 justify-center">
                     {STARTER_PROMPTS.map((prompt, index) => (
                       <button
                         key={index}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted hover:bg-muted/80 text-sm transition-colors"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-muted hover:bg-muted/80 text-sm transition-colors border border-border/50"
                         onClick={() => handleStarterClick(prompt.query)}
                       >
                         <prompt.icon className="h-4 w-4 text-primary" />

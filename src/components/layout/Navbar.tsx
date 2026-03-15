@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
 export const Navbar = () => {
   const { user, signOut } = useAuth();
@@ -32,10 +33,12 @@ export const Navbar = () => {
   };
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
-      ? 'bg-background/95 backdrop-blur-md border-b border-border shadow-sm'
-      : 'bg-transparent'
-      }`}>
+    <header className={cn(
+      "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
+      scrolled 
+        ? "h-16 bg-background/70 backdrop-blur-xl border-b border-white/20 shadow-lg" 
+        : "h-20 bg-transparent"
+    )}>
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
@@ -165,6 +168,6 @@ export const Navbar = () => {
           </div>
         </div>
       )}
-    </nav>
+    </header>
   );
 };

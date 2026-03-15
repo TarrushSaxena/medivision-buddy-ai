@@ -31,6 +31,10 @@ const xrayAnalysisSchema = new mongoose.Schema({
     notes: {
         type: String,
         default: null
+    },
+    heatmap_image: {
+        type: String,
+        default: null
     }
 }, {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

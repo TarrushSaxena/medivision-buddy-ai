@@ -72,7 +72,7 @@ export default function Login() {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 bg-white text-foreground"
+                  className="pl-10 bg-slate-900/50 border-white/10 text-white placeholder:text-muted-foreground focus:ring-bio-emerald"
                   required
                 />
               </div>
@@ -93,7 +93,7 @@ export default function Login() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-white text-foreground"
+                  className="pl-10 bg-slate-900/50 border-white/10 text-white placeholder:text-muted-foreground focus:ring-bio-emerald"
                   required
                 />
               </div>
