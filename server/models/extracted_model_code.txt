@@ -1,0 +1,252 @@
+# Cell to clean directory from previous test files or useless files:
+
+#import shutil
+shutil.rmtree('/kaggle/working/COVID-EX-Qu-dataset')
+#os.remove('/kaggle/working/Model_DNet.h5')
+
+-----------------
+
+#Main architecture of the model
+import tensorflow as tf
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
+from tensorflow.keras.applications import DenseNet201
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
+
+def build_model():
+    base_model = DenseNet201(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+
+    # Freeze the pre-trained layers
+    for layer in base_model.layers:
+        layer.trainable = False
+    for layer in base_model.layers[137:]: # Comment line if not fine tuned
+        layer.trainable = True            # Comment line if not fine tuned
+
+    # Add custom classifier layers
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(256, activation='relu')(x)
+    x = Dropout(0.2)(x)
+    x = Dense(128, activation='relu')(x)
+    x = Dropout(0.2)(x)
+    output = Dense(3, activation='softmax')(x)
+
+    model = Model(inputs=base_model.input, outputs=output)
+
+    # Compile the model
+    optimizer = Adam(learning_rate=0.001)
+    model.compile(optimizer=optimizer,
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+
+    return model
+
+-----------------
+
+# Model
+Model_DNet = build_model()
+
+-----------------
+
+# Checking of model layers
+Model_DNet.summary()
+
+-----------------
+
+# MODEL TRAINING:
+nb_img_train = train_generator.samples
+nb_img_val = val_generator.samples
+history_densenet = Model_DNet.fit(train_generator, 
+                                epochs = 30,
+                                steps_per_epoch = nb_img_train//batch_size,
+                                validation_data=val_generator,
+                                validation_steps=nb_img_val//batch_size,
+                                callbacks = [reduce_learning_rate]
+                                )
+
+-----------------
+
+# Loss and accuracy analysis during training
+def plot_model_history (history):
+    plt.figure(figsize=(12,4))
+    plt.subplot(121)
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('Model loss by epoch')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='right')
+
+    plt.subplot(122)
+    plt.plot(history.history['accuracy'])
+    plt.plot(history.history['val_accuracy'])
+    plt.title('Model acc by epoch')
+    plt.ylabel('acc')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='right')
+    plt.show()
+
+-----------------
+
+from tensorflow.keras.models import load_model
+Model_DNet_m = load_model('/kaggle/working/Model_DNet_m_freezed.h5')
+Model_DNet = load_model('/kaggle/working/Model_DNet_freezed.h5')
+
+-----------------
+
+Model_DNet.load_weights('/kaggle/working/DNet_B_v0_image_freezed.weights.h5')
+
+-----------------
+
+# Model evaluation on test generator data
+evaluation = Model_DNet.evaluate(test_generator)
+
+# Print the evaluation metrics
+print("Test Loss:", evaluation[0])
+print("Test Accuracy:", evaluation[1])
+
+-----------------
+
+# Confusion_ matrix:
+
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report
+
+# Generate predictions on the test data
+predictions = Model_DNet.predict(test_generator)
+# Get the predicted classes
+predicted_classes = np.argmax(predictions, axis=1)
+# Get the true classes
+true_classes = test_generator.classes
+
+# Calculate the confusion matrix
+conf_matrix = confusion_matrix(true_classes, predicted_classes)
+print(classification_report(true_classes, predicted_classes))
+# Plot the heatmap
+plt.figure(figsize=(10, 8))
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=test_generator.class_indices.keys(), yticklabels=test_generator.class_indices.keys())
+plt.xlabel('Predicted labels')
+plt.ylabel('True labels')
+plt.title('Confusion Matrix_Optimized DenseNet')
+plt.show()
+
+-----------------
+
+# Example usage for applying the model on multiple images from the validation set
+apply_model_and_visualize_multiple_images(Model_DNet, test_generator, num_images=12)
+
+-----------------
+
+def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None):
+    # First, we create a model that maps the input image to the activations
+    # of the last conv layer as well as the output predictions
+    grad_model = keras.models.Model(inputs = model.input, outputs = [model.get_layer(last_conv_layer_name).output, model.output])
+
+    # Then, we compute the gradient of the top predicted class for our input image
+    # with respect to the activations of the last conv layer
+    with tf.GradientTape() as tape:
+        last_conv_layer_output, preds = grad_model(img_array)
+        if pred_index is None:
+            pred_index = tf.argmax(preds[0])
+        class_channel = preds[:, pred_index]
+
+    # This is the gradient of the output neuron (top predicted or chosen)
+    # with regard to the output feature map of the last conv layer
+    grads = tape.gradient(class_channel, last_conv_layer_output)
+
+    # This is a vector where each entry is the mean intensity of the gradient
+    # over a specific feature map channel
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+
+    # We multiply each channel in the feature map array
+    # by "how important this channel is" with regard to the top predicted class
+    # then sum all the channels to obtain the heatmap class activation
+    last_conv_layer_output = last_conv_layer_output[0]
+    heatmap = last_conv_layer_output @ pooled_grads[..., tf.newaxis]
+    heatmap = tf.squeeze(heatmap)
+
+    # For visualization purpose, we will also normalize the heatmap between 0 & 1
+    heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
+    return heatmap.numpy()
+
+-----------------
+
+plot_gradcam_results (Model_DNet, test_generator, 'conv5_block32_concat')
+
+-----------------
+
+Model_DNet_m = build_model()
+# If model weights were saved in previous session, un-comment following commande:
+#Model_DNet_m.load_weights('/kaggle/working/DNet_B_v0_masked_freezed.weights.h5')
+
+-----------------
+
+#Training of the model of masked images
+nb_img_train = train_generator_m.samples
+nb_img_val = val_generator_m.samples
+history_densenet_m = Model_DNet_m.fit(train_generator_m, 
+                                epochs = 30,
+                                steps_per_epoch = nb_img_train//batch_size,
+                                validation_data=val_generator_m,
+                                validation_steps=nb_img_val//batch_size,
+                                callbacks = [reduce_learning_rate]
+                                )
+
+-----------------
+
+# Model evaluation on test generator data
+evaluation = Model_DNet_m.evaluate(test_generator_m)
+
+# Print the evaluation metrics
+print("Test Loss:", evaluation[0])
+print("Test Accuracy:", evaluation[1])
+
+-----------------
+
+# Confusion_ matrix:
+
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report
+
+# Generate predictions on the test data
+predictions = Model_DNet_m.predict(test_generator_m)
+# Get the predicted classes
+predicted_classes = np.argmax(predictions, axis=1)
+# Get the true classes
+true_classes = test_generator_m.classes
+
+# Calculate the confusion matrix
+conf_matrix = confusion_matrix(true_classes, predicted_classes)
+print(classification_report(true_classes, predicted_classes))
+# Plot the heatmap
+plt.figure(figsize=(10, 8))
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=test_generator_m.class_indices.keys(), yticklabels=test_generator_m.class_indices.keys())
+plt.xlabel('Predicted labels')
+plt.ylabel('True labels')
+plt.title('Confusion Matrix_Optimized DenseNet')
+plt.show()
+
+-----------------
+
+apply_model_and_visualize_multiple_images(Model_DNet_m, test_generator_m, num_images=12)
+
+-----------------
+
+plot_gradcam_results (Model_DNet_m, test_generator_m, 'conv5_block32_concat')
+
+-----------------
+
+#If session re-loaded or any future use of the model: 
+#Model_DNet.load_weights('/kaggle/working/COVID-EX-Qu-dataset/Models/DNet_B_v0.weights.h5')
+
+#Model saving
+#Model_DNet.save_weights('/kaggle/working/model_densenet.weights.h5')
+Model_DNet_m.save_weights('/kaggle/working/model_densenet_masked.weights.h5')
+
+-----------------
+
+Model_DNet.save('/kaggle/working/Model_DNet.h5') 
+#Model_DNet_m.save('/kaggle/working/Model_DNet_m_unfreezed.h5')
+
+-----------------
+
