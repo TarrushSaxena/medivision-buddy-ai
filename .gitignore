@@ -12,6 +12,15 @@ dist
 dist-ssr
 *.local
 
+# Environment variable files (may contain secrets)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Vite build artifacts / timestamps
+vite.config.ts.timestamp-*.mjs
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,4 +31,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-server/models/Test.zip 
+server/models/Test.zip
